@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "일정 취합 사이트",
+  title: "일정 취합",
   description: "여러 사람의 가능한 시간을 모아 한눈에 보는 일정 취합 도구",
 };
 
