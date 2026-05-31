@@ -1,0 +1,24 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug logs
+npm-debug.log*
+
+# 로컬 데이터 저장소 — 사용자/일정 개인정보 포함되므로 절대 커밋 금지
+/data.json
+/data.json.tmp
+
+# env
+.env*.local
+.env

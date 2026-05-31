@@ -1,0 +1,17 @@
+{
+  "name": "schedule-collector",
+  "version": "1.0.0",
+  "description": "일정 취합 사이트 - 여러 사람의 가능 시간을 모아 보는 도구",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "next": "^14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}
