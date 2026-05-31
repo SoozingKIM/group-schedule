@@ -40,6 +40,7 @@ export default function ProjectPage({ params }) {
   const [compare, setCompare] = useState(null); // null | { left: locId, right: locId }
   const [dupModal, setDupModal] = useState(null); // null | { name, locationId, existingLocations, suggestedName }
   const [locSubTabs, setLocSubTabs] = useState({}); // { locId: lastActiveTabInThatLocation } — 위치 전환 시 복원용
+  const subTabsLoadedRef = useRef(false); // sessionStorage 1회만 로드
   const [authMode, setAuthMode] = useState("loading"); // 'loading' | 'pending' | 'owner' | 'guest'
   const [authError, setAuthError] = useState(null);
   const [shareModal, setShareModal] = useState(false);
@@ -80,7 +81,29 @@ export default function ProjectPage({ params }) {
     setMultiSel(new Set());
   }, [activeTab]);
 
-  // activeTab이 바뀔 때마다 "이 위치에서 마지막으로 본 하위 탭"을 저장 — 위치 전환 후 복원에 사용
+  // 1) sessionStorage에서 이전 세션의 위치별 마지막 탭 복원 (프로젝트 로드 직후, 1회만)
+  useEffect(() => {
+    if (!project || subTabsLoadedRef.current) return;
+    if (typeof window !== "undefined") {
+      try {
+        const stored = window.sessionStorage.getItem(`subTabs_${project.id}`);
+        if (stored) setLocSubTabs(JSON.parse(stored));
+        const storedTab = window.sessionStorage.getItem(`activeTab_${project.id}`);
+        if (storedTab) {
+          // 복원 가능 여부 검증
+          const ok =
+            storedTab.startsWith("overview:") ||
+            storedTab.startsWith("multi:") ||
+            (project.teams || []).some((t) => t.id === storedTab) ||
+            project.people.some((p) => p.id === storedTab);
+          if (ok) setActiveTab(storedTab);
+        }
+      } catch {}
+    }
+    subTabsLoadedRef.current = true;
+  }, [project?.id]);
+
+  // 2) activeTab이 바뀔 때마다 "이 위치에서 마지막으로 본 하위 탭"을 저장 — 위치 전환 후 복원에 사용
   useEffect(() => {
     if (!project || !activeTab) return;
     let locKey = null;
@@ -98,6 +121,15 @@ export default function ProjectPage({ params }) {
       setLocSubTabs((prev) => (prev[locKey] === activeTab ? prev : { ...prev, [locKey]: activeTab }));
     }
   }, [activeTab, project?.id]);
+
+  // 3) locSubTabs와 activeTab을 sessionStorage에 저장 (새로고침해도 유지)
+  useEffect(() => {
+    if (!project || typeof window === "undefined" || !subTabsLoadedRef.current) return;
+    try {
+      window.sessionStorage.setItem(`subTabs_${project.id}`, JSON.stringify(locSubTabs));
+      window.sessionStorage.setItem(`activeTab_${project.id}`, activeTab);
+    } catch {}
+  }, [locSubTabs, activeTab, project?.id]);
 
   // 위치 탭 클릭 시 호출 — 저장된 하위 탭이 있으면 거기로, 없으면 그 위치의 전체취합으로
   function gotoLocation(locId) {
