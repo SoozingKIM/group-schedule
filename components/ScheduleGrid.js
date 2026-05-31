@@ -138,6 +138,24 @@ export default function ScheduleGrid({ config, person, editing = false, onCommit
     );
   }
 
+  // 강조 날짜 범위 — 6월 23~29일 통째로 옅은 붉은 테두리
+  function isInMarkedRange(dt) {
+    const md = String(dt.m).padStart(2, "0") + "-" + String(dt.d).padStart(2, "0");
+    return md >= "06-23" && md <= "06-29";
+  }
+  const markedFirstC = dates.findIndex(isInMarkedRange);
+  const markedLastC = (() => {
+    for (let i = dates.length - 1; i >= 0; i--) if (isInMarkedRange(dates[i])) return i;
+    return -1;
+  })();
+  function colClass(c, dt) {
+    if (!isInMarkedRange(dt)) return "";
+    let s = " marked-col";
+    if (c === markedFirstC) s += " marked-col-first";
+    if (c === markedLastC) s += " marked-col-last";
+    return s;
+  }
+
   // 가로/세로 보조선 — JS로 같은 행/열의 셀들과 시간 라벨/날짜 헤더에 hover-axis 클래스 부여
   const tableRef = useRef(null);
   const axisHoverRef = useRef({ elements: [], lastR: null, lastC: null });
@@ -177,7 +195,7 @@ export default function ScheduleGrid({ config, person, editing = false, onCommit
             {dates.map((dt, c) => (
               <th
                 key={dt.key}
-                className={"date-h" + (dt.dow === 6 ? " sat" : dt.dow === 0 ? " sun" : "")}
+                className={"date-h" + (dt.dow === 6 ? " sat" : dt.dow === 0 ? " sun" : "") + colClass(c, dt)}
                 data-c={c}
               >
                 {dt.label}
@@ -187,8 +205,8 @@ export default function ScheduleGrid({ config, person, editing = false, onCommit
           </tr>
           <tr className="memo-row">
             <td className="time-label col-time">메모</td>
-            {dates.map((dt) => (
-              <td key={dt.key}>
+            {dates.map((dt, c) => (
+              <td key={dt.key} className={colClass(c, dt).trim()}>
                 <textarea
                   className="memo-input"
                   rows={1}
@@ -218,7 +236,7 @@ export default function ScheduleGrid({ config, person, editing = false, onCommit
                 return (
                   <td
                     key={dt.key}
-                    className={"slot" + (selectedSet.has(key) ? " selected" : "")}
+                    className={"slot" + (selectedSet.has(key) ? " selected" : "") + colClass(c, dt)}
                     data-key={key}
                     data-r={r}
                     data-c={c}

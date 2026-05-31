@@ -80,6 +80,24 @@ export default function OverviewGrid({ config, people, locationName }) {
     return count / total > 0.55 ? "#fff" : "#1f2330";
   }
 
+  // 강조 날짜 범위 — 6월 23~29일 통째로 옅은 붉은 테두리
+  function isInMarkedRange(dt) {
+    const md = String(dt.m).padStart(2, "0") + "-" + String(dt.d).padStart(2, "0");
+    return md >= "06-23" && md <= "06-29";
+  }
+  const markedFirstC = dates.findIndex(isInMarkedRange);
+  const markedLastC = (() => {
+    for (let i = dates.length - 1; i >= 0; i--) if (isInMarkedRange(dates[i])) return i;
+    return -1;
+  })();
+  function colClass(c, dt) {
+    if (!isInMarkedRange(dt)) return "";
+    let s = " marked-col";
+    if (c === markedFirstC) s += " marked-col-first";
+    if (c === markedLastC) s += " marked-col-last";
+    return s;
+  }
+
   // 가로/세로 보조선 — JS로 같은 행/열에 hover-axis 클래스 부여
   const tableRef = useRef(null);
   const axisHoverRef = useRef({ elements: [], lastR: null, lastC: null });
@@ -153,7 +171,7 @@ export default function OverviewGrid({ config, people, locationName }) {
               {dates.map((dt, cIdx) => (
                 <th
                   key={dt.key}
-                  className={"date-h" + (dt.dow === 6 ? " sat" : dt.dow === 0 ? " sun" : "")}
+                  className={"date-h" + (dt.dow === 6 ? " sat" : dt.dow === 0 ? " sun" : "") + colClass(cIdx, dt)}
                   data-c={cIdx}
                 >
                   {dt.label}
@@ -186,7 +204,8 @@ export default function OverviewGrid({ config, people, locationName }) {
                           "heat" +
                           (isActive ? " active" : "") +
                           (pinned && pinned.key === k ? " pinned" : "") +
-                          (isFull ? " full" : "")
+                          (isFull ? " full" : "") +
+                          colClass(cIdx, dt)
                         }
                         data-c={cIdx}
                         data-r={r}
