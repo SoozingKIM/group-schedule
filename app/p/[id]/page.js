@@ -553,6 +553,17 @@ export default function ProjectPage({ params }) {
     }
   }
 
+  async function saveProjectNotes(notes) {
+    if ((project.notes || "") === notes) return;
+    try {
+      const p = await persist(api.patch(`/api/projects/${id}`, { notes }));
+      revRef.current = p.rev || 0;
+      setProject(p);
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
   async function savePasswords({ adminPassword, sharePassword }) {
     try {
       const p = await persist(api.patch(`/api/projects/${id}`, { adminPassword, sharePassword }));
@@ -1035,6 +1046,18 @@ export default function ProjectPage({ params }) {
         ) : null}
         </>
         )}
+
+        <aside className="side-memo">
+          <h4>📝 프로젝트 메모</h4>
+          <textarea
+            className="side-memo-input"
+            defaultValue={project.notes || ""}
+            placeholder={isGuest ? "(공유 모드: 읽기 전용)" : "여기에 자유롭게 메모하세요. 포커스를 잃을 때 자동 저장됩니다."}
+            readOnly={isGuest}
+            onBlur={(e) => !isGuest && saveProjectNotes(e.target.value)}
+            key={`notes-${project.id}-${project.rev}`}
+          />
+        </aside>
       </div>
 
       {shareModal && (

@@ -481,6 +481,51 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* 프로젝트 메모 패널 — 넓은 화면에선 표 옆 여백에 고정, 좁은 화면에선 표 아래 인라인 */
+.side-memo {
+  margin-top: 16px;
+  background: #fffdf3;
+  border: 1px solid #ecdfa3;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.side-memo h4 {
+  margin: 0 0 8px;
+  font-size: 13px; color: #806620; font-weight: 700;
+}
+.side-memo-input {
+  width: 100%;
+  min-height: 160px;
+  border: 1px dashed rgba(150, 120, 30, 0.35);
+  border-radius: 8px;
+  background: #fffef9;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  resize: vertical;
+  box-sizing: border-box;
+}
+.side-memo-input:focus { outline: none; border-color: #d4b04a; background: #fff; }
+.side-memo-input[readonly] { background: #fdf9e8; cursor: default; }
+
+/* 1380px 이상에선 표 옆 빈 공간에 메모를 고정 배치 */
+@media (min-width: 1380px) {
+  .side-memo {
+    position: fixed;
+    top: 88px;
+    left: calc(50% + 570px);
+    width: 280px;
+    max-height: calc(100vh - 110px);
+    overflow-y: auto;
+    margin-top: 0;
+    z-index: 10;
+  }
+  .side-memo-input { min-height: calc(100vh - 200px); }
+}
+
 /* 비밀번호 게이트 */
 .pw-gate { display: grid; place-items: center; min-height: 60vh; padding: 20px; }
 .pw-gate-box {
