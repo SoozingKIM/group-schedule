@@ -71,9 +71,11 @@ export default function OverviewGrid({ config, people, locationName }) {
     return <div className="empty-hint">아직 참여자가 없습니다. 사람을 추가해 일정을 입력해 보세요.</div>;
   }
 
-  function bg(count) {
+  function bg(count, marked) {
     if (count === 0) return "#fff";
     const alpha = 0.18 + (count / total) * 0.82;
+    // 강조 주간(예: 6/23~29)은 붉은 계열로
+    if (marked) return `rgba(229, 72, 77, ${alpha.toFixed(3)})`;
     return `rgba(79, 110, 247, ${alpha.toFixed(3)})`;
   }
   function fg(count) {
@@ -197,6 +199,7 @@ export default function OverviewGrid({ config, people, locationName }) {
                     const c = names.length;
                     const isActive = active && active.key === k;
                     const isFull = total > 0 && c === total;
+                    const isMarked = isInMarkedRange(dt);
                     return (
                       <td
                         key={dt.key}
@@ -209,7 +212,7 @@ export default function OverviewGrid({ config, people, locationName }) {
                         }
                         data-c={cIdx}
                         data-r={r}
-                        style={{ background: bg(c), color: fg(c) }}
+                        style={{ background: bg(c, isMarked), color: fg(c) }}
                         onMouseEnter={(e) => onCellEnter(e, dt, s, k)}
                         onMouseMove={onCellMove}
                         onMouseLeave={onCellLeave}

@@ -266,6 +266,21 @@ export default function ProjectPage({ params }) {
     }
   }
 
+  async function reorderLocations(fromId, toId) {
+    const next = moveById(project.locations || [], fromId, toId);
+    if (!next) return;
+    setProject((p) => ({ ...p, locations: next }));
+    try {
+      const updated = await persist(
+        api.patch(`/api/projects/${id}`, { locationOrder: next.map((l) => l.id) })
+      );
+      revRef.current = updated.rev || 0;
+    } catch (e) {
+      toast(e.message);
+      loadProject();
+    }
+  }
+
   async function reorderPeople(fromId, toId) {
     const from = project.people.find((p) => p.id === fromId);
     const to = project.people.find((p) => p.id === toId);
@@ -304,6 +319,7 @@ export default function ProjectPage({ params }) {
     e.preventDefault();
     if (kind === "team") reorderTeams(dragging.id, tabId);
     else if (kind === "person") reorderPeople(dragging.id, tabId);
+    else if (kind === "location") reorderLocations(dragging.id, tabId);
     setDragging(null);
     setDragOver(null);
   }
@@ -634,8 +650,18 @@ export default function ProjectPage({ params }) {
                 const count = project.people.filter((p) => p.locationId === loc.id).length;
                 const isActive = activeLocId === loc.id;
                 if (isActive) {
+                  const isDrag = dragging?.kind === "location" && dragging.id === loc.id;
+                  const isOver = dragOver?.kind === "location" && dragOver.id === loc.id;
                   return (
-                    <div key={loc.id} className="tab loc-tab active">
+                    <div
+                      key={loc.id}
+                      className={"tab loc-tab active" + (isDrag ? " dragging" : "") + (isOver ? " drag-over" : "")}
+                      draggable={isOwner}
+                      onDragStart={isOwner ? (e) => onTabDragStart(e, "location", loc.id) : undefined}
+                      onDragOver={isOwner ? (e) => onTabDragOver(e, "location", loc.id) : undefined}
+                      onDrop={isOwner ? (e) => onTabDrop(e, "location", loc.id) : undefined}
+                      onDragEnd={isOwner ? onTabDragEnd : undefined}
+                    >
                       📍
                       <input
                         className="loc-name-inline"
@@ -660,10 +686,17 @@ export default function ProjectPage({ params }) {
                     </div>
                   );
                 }
+                const isDrag = dragging?.kind === "location" && dragging.id === loc.id;
+                const isOver = dragOver?.kind === "location" && dragOver.id === loc.id;
                 return (
                   <button
                     key={loc.id}
-                    className="tab loc-tab"
+                    className={"tab loc-tab" + (isDrag ? " dragging" : "") + (isOver ? " drag-over" : "")}
+                    draggable={isOwner}
+                    onDragStart={isOwner ? (e) => onTabDragStart(e, "location", loc.id) : undefined}
+                    onDragOver={isOwner ? (e) => onTabDragOver(e, "location", loc.id) : undefined}
+                    onDrop={isOwner ? (e) => onTabDrop(e, "location", loc.id) : undefined}
+                    onDragEnd={isOwner ? onTabDragEnd : undefined}
                     onClick={() => setActiveTab(`overview:${loc.id}`)}
                   >
                     📍 {loc.name} <span className="tab-count">({count}명)</span>

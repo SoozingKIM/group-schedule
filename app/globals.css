@@ -358,12 +358,17 @@ td.slot:hover { background: #eef1ff; }
 .grid-wrap.read-only td.slot.selected:hover { background: var(--primary); }
 .grid-wrap.read-only .memo-input { cursor: default; color: var(--text); }
 
-/* 특정 날짜 범위 강조 (6월 23~29일 등) — 옅은 붉은 테두리로 한 주를 통째로 표시 */
-table.grid th.date-h.marked-col { border-top: 1.5px solid rgba(229, 72, 77, 0.5); }
-table.grid .marked-col-first { border-left: 1.5px solid rgba(229, 72, 77, 0.5); }
-table.grid .marked-col-last { border-right: 1.5px solid rgba(229, 72, 77, 0.5); }
-table.grid tbody tr:last-child td.marked-col { border-bottom: 1.5px solid rgba(229, 72, 77, 0.5); }
-table.grid th.date-h.marked-col { background: rgba(229, 72, 77, 0.04); }
+/* 특정 날짜 범위 강조 (6월 23~29일 등) — 붉은 테두리 + 범위 안의 셀 색은 붉은 계열로 */
+table.grid th.date-h.marked-col { border-top: 1.5px solid rgba(229, 72, 77, 0.55); }
+table.grid .marked-col-first { border-left: 1.5px solid rgba(229, 72, 77, 0.55); }
+table.grid .marked-col-last { border-right: 1.5px solid rgba(229, 72, 77, 0.55); }
+table.grid tbody tr:last-child td.marked-col { border-bottom: 1.5px solid rgba(229, 72, 77, 0.55); }
+table.grid th.date-h.marked-col { background: rgba(229, 72, 77, 0.06); color: #b8383d; }
+/* 선택된 일정 칸 — 범위 안에서는 붉게 (편집 표) */
+table.grid td.slot.selected.marked-col { background: #e5484d; }
+table.grid td.slot.marked-col:hover { background: #ffd6d8 !important; }
+table.grid td.slot.selected.marked-col.hover-col,
+table.grid td.slot.selected.marked-col.hover-row { background: #e5484d; }
 
 /* 가로/세로 보조선 — JS가 hover-row/hover-col 클래스를 부여 */
 /* 호버한 셀 자체 — 진한 강조 */
