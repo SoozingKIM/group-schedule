@@ -290,6 +290,24 @@ td.heat.full {
 .cell-tooltip .tt-count { color: #b9c0cf; margin-left: 4px; }
 .cell-tooltip .tt-names { margin-top: 2px; color: #e6e8ee; word-break: keep-all; }
 
+/* 보호 토글 — 공유 설정 모달의 비밀번호 ON/OFF 스위치 */
+.protection-toggle {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 14px; background: #f5f7fb;
+  border: 1px solid var(--border); border-radius: 10px;
+  margin-top: 10px; cursor: pointer;
+}
+.protection-toggle input[type="checkbox"] {
+  width: 18px; height: 18px; flex-shrink: 0; cursor: pointer;
+  accent-color: var(--primary); margin-top: 2px;
+}
+.protection-toggle-label { display: flex; flex-direction: column; gap: 2px; }
+.protection-toggle-label strong { font-size: 14px; font-weight: 700; color: var(--text); }
+.protection-toggle-label small { font-size: 12px; color: var(--muted); }
+.protection-toggle:has(input:checked) {
+  background: #f0f4ff; border-color: #cdd6f5;
+}
+
 /* 팀 만들기/수정 모달 */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(20, 24, 36, 0.45);

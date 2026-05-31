@@ -1229,61 +1229,95 @@ function PasswordGate({ projectName, onAuth, error }) {
   );
 }
 
-// 공유 설정 모달 — 관리자/공유 비밀번호 설정 + 링크 복사
+// 공유 설정 모달 — 비밀번호 보호 ON/OFF + 관리자/공유 비밀번호 + 링크 복사
 function ShareModal({ project, projectUrl, onSave, onClose }) {
+  const [protectionOn, setProtectionOn] = useState(!!(project.adminPassword || project.sharePassword));
   const [admin, setAdmin] = useState(project.adminPassword || "");
   const [share, setShare] = useState(project.sharePassword || "");
   function copy(text, msg) {
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => toast(msg));
     else window.prompt("아래를 복사하세요", text);
   }
+  function handleSave() {
+    if (protectionOn) {
+      if (!admin.trim() && !share.trim()) {
+        toast("비밀번호를 입력하거나 보호를 끄세요.");
+        return;
+      }
+      onSave({ adminPassword: admin.trim(), sharePassword: share.trim() });
+    } else {
+      // 보호 OFF — 비밀번호 모두 해제
+      onSave({ adminPassword: "", sharePassword: "" });
+    }
+  }
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: 460 }}>
         <h3>🔗 공유 설정</h3>
-        <div className="modal-sub">
-          관리자 비밀번호로 들어오면 전체 편집 가능, 공유 비밀번호로 들어오면 사람 일정만 수정 가능합니다.
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
-          <label className="field" style={{ flexDirection: "column", alignItems: "stretch" }}>
-            <span style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>관리자 비밀번호 (본인만)</span>
-            <input
-              className="modal-input"
-              type="text"
-              value={admin}
-              onChange={(e) => setAdmin(e.target.value)}
-              placeholder="예: myAdmin123"
-            />
-          </label>
-          <label className="field" style={{ flexDirection: "column", alignItems: "stretch" }}>
-            <span style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>공유 비밀번호 (참여자들에게 알려줄)</span>
-            <input
-              className="modal-input"
-              type="text"
-              value={share}
-              onChange={(e) => setShare(e.target.value)}
-              placeholder="예: team2026"
-            />
-          </label>
-        </div>
+
+        <label className="protection-toggle">
+          <input
+            type="checkbox"
+            checked={protectionOn}
+            onChange={(e) => setProtectionOn(e.target.checked)}
+          />
+          <span className="protection-toggle-label">
+            <strong>비밀번호로 보호하기</strong>
+            <small>
+              {protectionOn
+                ? "비밀번호를 모르면 들어올 수 없음 — 친구들에게 공유 비번 전달 필요"
+                : "누구나 링크만 알면 자유롭게 들어와 편집할 수 있음"}
+            </small>
+          </span>
+        </label>
+
+        {protectionOn ? (
+          <>
+            <div className="modal-sub" style={{ marginTop: 12 }}>
+              관리자 비밀번호로 들어오면 전체 편집 가능, 공유 비밀번호로는 사람 일정만 수정 가능합니다.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+              <label className="field" style={{ flexDirection: "column", alignItems: "stretch" }}>
+                <span style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>관리자 비밀번호 (본인만)</span>
+                <input
+                  className="modal-input"
+                  type="text"
+                  value={admin}
+                  onChange={(e) => setAdmin(e.target.value)}
+                  placeholder="예: myAdmin123"
+                />
+              </label>
+              <label className="field" style={{ flexDirection: "column", alignItems: "stretch" }}>
+                <span style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>공유 비밀번호 (참여자들에게 알려줄)</span>
+                <input
+                  className="modal-input"
+                  type="text"
+                  value={share}
+                  onChange={(e) => setShare(e.target.value)}
+                  placeholder="예: team2026"
+                />
+              </label>
+            </div>
+          </>
+        ) : null}
+
         <div style={{ marginTop: 14, padding: 10, background: "#f5f7fb", borderRadius: 8, fontSize: 13 }}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>참여자에게 전달할 정보</div>
-          <div style={{ marginBottom: 6, display: "flex", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ marginBottom: protectionOn && share ? 6 : 0, display: "flex", justifyContent: "space-between", gap: 8 }}>
             <code style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{projectUrl}</code>
             <button className="btn small" onClick={() => copy(projectUrl, "주소를 복사했습니다")}>주소 복사</button>
           </div>
-          {share && (
+          {protectionOn && share && (
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
               <code style={{ flex: 1 }}>비밀번호: {share}</code>
               <button className="btn small" onClick={() => copy(share, "비밀번호를 복사했습니다")}>비밀번호 복사</button>
             </div>
           )}
         </div>
+
         <div className="modal-actions">
           <button className="btn" onClick={onClose}>취소</button>
-          <button className="btn primary" onClick={() => onSave({ adminPassword: admin, sharePassword: share })}>
-            저장
-          </button>
+          <button className="btn primary" onClick={handleSave}>저장</button>
         </div>
       </div>
     </div>
