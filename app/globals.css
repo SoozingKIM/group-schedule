@@ -493,7 +493,24 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
 .side-memo h4 {
   margin: 0 0 8px;
   font-size: 13px; color: #806620; font-weight: 700;
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
 }
+.side-memo-close {
+  border: none; background: transparent; color: #806620;
+  width: 22px; height: 22px; line-height: 1; font-size: 16px;
+  border-radius: 6px; cursor: pointer; padding: 0;
+}
+.side-memo-close:hover { background: rgba(150, 120, 30, 0.12); }
+
+/* 메모 없을 때 오너용 작은 버튼 */
+.side-memo-add {
+  margin-top: 14px;
+  padding: 8px 14px;
+  background: #fffdf3; border: 1px dashed #d4b04a;
+  border-radius: 8px; font-size: 13px; color: #806620;
+  cursor: pointer; font-family: inherit; font-weight: 600;
+}
+.side-memo-add:hover { background: #fff4cc; border-style: solid; }
 .side-memo-input {
   width: 100%;
   min-height: 160px;
@@ -524,6 +541,13 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
     z-index: 10;
   }
   .side-memo-input { min-height: calc(100vh - 200px); }
+  .side-memo-add {
+    position: fixed;
+    top: 88px;
+    left: calc(50% + 570px);
+    margin-top: 0;
+    z-index: 10;
+  }
 }
 
 /* 비밀번호 게이트 */

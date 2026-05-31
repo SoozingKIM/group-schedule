@@ -41,6 +41,7 @@ export default function ProjectPage({ params }) {
   const [dupModal, setDupModal] = useState(null); // null | { name, locationId, existingLocations, suggestedName }
   const [locSubTabs, setLocSubTabs] = useState({}); // { locId: lastActiveTabInThatLocation } — 위치 전환 시 복원용
   const subTabsLoadedRef = useRef(false); // sessionStorage 1회만 로드
+  const [notesEditing, setNotesEditing] = useState(false); // 비었을 때 오너가 '메모 쓰기' 누르면 패널 펼침
   const [authMode, setAuthMode] = useState("loading"); // 'loading' | 'pending' | 'owner' | 'guest'
   const [authError, setAuthError] = useState(null);
   const [shareModal, setShareModal] = useState(false);
@@ -1047,17 +1048,50 @@ export default function ProjectPage({ params }) {
         </>
         )}
 
-        <aside className="side-memo">
-          <h4>📝 프로젝트 메모</h4>
-          <textarea
-            className="side-memo-input"
-            defaultValue={project.notes || ""}
-            placeholder={isGuest ? "(공유 모드: 읽기 전용)" : "여기에 자유롭게 메모하세요. 포커스를 잃을 때 자동 저장됩니다."}
-            readOnly={isGuest}
-            onBlur={(e) => !isGuest && saveProjectNotes(e.target.value)}
-            key={`notes-${project.id}-${project.rev}`}
-          />
-        </aside>
+        {(() => {
+          const hasNotes = !!(project.notes && project.notes.trim());
+          const showPanel = hasNotes || (isOwner && notesEditing);
+          if (showPanel) {
+            return (
+              <aside className="side-memo">
+                <h4>
+                  📝 프로젝트 메모
+                  {isOwner && !hasNotes && (
+                    <button
+                      className="side-memo-close"
+                      onClick={() => setNotesEditing(false)}
+                      title="닫기"
+                      aria-label="메모 패널 닫기"
+                    >
+                      ×
+                    </button>
+                  )}
+                </h4>
+                <textarea
+                  className="side-memo-input"
+                  defaultValue={project.notes || ""}
+                  placeholder={isGuest ? "(공유 모드: 읽기 전용)" : "여기에 자유롭게 메모하세요. 포커스를 잃을 때 자동 저장됩니다."}
+                  readOnly={isGuest}
+                  onBlur={(e) => !isGuest && saveProjectNotes(e.target.value)}
+                  key={`notes-${project.id}-${project.rev}`}
+                  autoFocus={notesEditing && !hasNotes}
+                />
+              </aside>
+            );
+          }
+          if (isOwner) {
+            return (
+              <button
+                className="side-memo-add"
+                onClick={() => setNotesEditing(true)}
+                title="프로젝트 메모 추가"
+              >
+                📝 메모 쓰기
+              </button>
+            );
+          }
+          return null;
+        })()}
       </div>
 
       {shareModal && (
