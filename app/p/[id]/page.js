@@ -806,7 +806,11 @@ export default function ProjectPage({ params }) {
               </span>
               <span className="hint">{activeLocPeople.length}명 · 일정을 자동으로 합쳐서 봅니다.</span>
             </div>
-            <OverviewGrid config={project.config} people={activeLocPeople} />
+            <OverviewGrid
+              config={project.config}
+              people={activeLocPeople}
+              locationName={activeLoc ? activeLoc.name : "개인"}
+            />
           </>
         ) : isMultiTab ? (
           <>
@@ -845,6 +849,7 @@ export default function ProjectPage({ params }) {
               <OverviewGrid
                 config={project.config}
                 people={activeLocPeople.filter((p) => multiSel.has(p.id))}
+                locationName={activeLoc ? activeLoc.name : "개인"}
               />
             )}
           </>
@@ -871,6 +876,7 @@ export default function ProjectPage({ params }) {
             <OverviewGrid
               config={project.config}
               people={project.people.filter((p) => activeTeam.memberIds.includes(p.id))}
+              locationName={(project.locations || []).find((l) => l.id === activeTeam.locationId)?.name || "개인"}
             />
           </>
         ) : activePerson ? (
@@ -1014,7 +1020,7 @@ function CompareView({ project, compare, setCompare }) {
           </select>
           <span className="hint">전체 취합 · 칸 클릭하여 인원 고정</span>
         </div>
-        <OverviewGrid config={project.config} people={people} />
+        <OverviewGrid config={project.config} people={people} locationName={loc?.name || "?"} />
       </div>
     );
   };

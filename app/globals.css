@@ -416,18 +416,48 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
   margin-top: 14px; padding: 12px 14px;
   background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
 }
-.ranking-list h4 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.ranking-list h4 {
+  margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.ranking-list .rank-loc-head {
+  color: var(--primary); background: #f0f4ff; border: 1px solid #cdd6f5;
+  padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+}
 .ranking-list ol { margin: 0; padding-left: 22px; }
-.ranking-list li { padding: 4px 0; font-size: 13px; line-height: 1.5; }
+.ranking-list li {
+  padding: 8px 0; line-height: 1.55;
+  border-bottom: 1px solid #f0f2f6;
+}
+.ranking-list li:last-child { border-bottom: none; }
+.ranking-list .rank-head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 4px;
+  font-size: 13px;
+}
 .ranking-list .rank-count {
-  display: inline-block; min-width: 38px; padding: 1px 7px;
+  display: inline-block; min-width: 40px; padding: 1px 7px;
   background: var(--primary); color: #fff; border-radius: 5px;
   font-weight: 700; font-size: 12px; text-align: center;
-  margin-right: 8px;
 }
-.ranking-list .rank-when { font-weight: 600; color: var(--text); margin-right: 8px; }
-.ranking-list .rank-dur { color: var(--primary); font-weight: 600; margin-right: 8px; }
-.ranking-list .rank-names { color: var(--muted); }
+.ranking-list .rank-when { font-weight: 600; color: var(--text); }
+.ranking-list .rank-dur { color: var(--primary); font-weight: 600; }
+.ranking-list .rank-loc {
+  color: var(--muted); background: #f5f7fb; border: 1px solid var(--border);
+  font-size: 11px; padding: 1px 7px; border-radius: 999px; font-weight: 600;
+}
+.ranking-list .rank-row {
+  display: flex; gap: 8px; align-items: baseline;
+  font-size: 12px; padding-left: 2px; margin-top: 3px;
+}
+.ranking-list .rank-tag {
+  flex-shrink: 0; display: inline-block; min-width: 70px;
+  padding: 1px 7px; border-radius: 5px; text-align: center;
+  font-size: 11px; font-weight: 700;
+}
+.ranking-list .rank-tag.yes { background: rgba(56, 176, 102, 0.12); color: #2f9259; border: 1px solid rgba(56, 176, 102, 0.32); }
+.ranking-list .rank-tag.no { background: rgba(229, 72, 77, 0.10); color: #b8383d; border: 1px solid rgba(229, 72, 77, 0.30); }
+.ranking-list .rank-row .rank-names { color: var(--muted); }
+.ranking-list .rank-row.rank-yes .rank-names { color: var(--text); }
 .legend .sw { width: 18px; height: 14px; border: 1px solid var(--border); border-radius: 3px; display: inline-block; }
 
 /* ---------- 토스트 ---------- */

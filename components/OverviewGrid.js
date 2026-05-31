@@ -12,7 +12,7 @@ export function formatDuration(totalMin) {
   return `${m}분`;
 }
 
-export default function OverviewGrid({ config, people }) {
+export default function OverviewGrid({ config, people, locationName }) {
   const dates = useMemo(() => generateDates(config.startDate, config.endDate), [config.startDate, config.endDate]);
   const slots = useMemo(
     () => generateSlots(config.startTime, config.endTime, config.slotMinutes || 30),
@@ -231,7 +231,14 @@ export default function OverviewGrid({ config, people }) {
         </div>
       </div>
 
-      <RankingList dates={dates} slots={slots} counts={counts} maxItems={15} />
+      <RankingList
+        people={people}
+        dates={dates}
+        slots={slots}
+        counts={counts}
+        locationName={locationName}
+        maxItems={15}
+      />
 
       <div className="legend">
         <span>가능 인원:</span>
@@ -245,7 +252,7 @@ export default function OverviewGrid({ config, people }) {
 }
 
 // 가능 시간 순위 — 같은 사람들이 연속해서 가능한 구간을 묶어 순위로 보여줌
-function RankingList({ dates, slots, counts, maxItems = 15 }) {
+function RankingList({ people, dates, slots, counts, locationName, maxItems = 15 }) {
   const ranges = useMemo(() => {
     const out = [];
     for (const dt of dates) {
@@ -281,6 +288,8 @@ function RankingList({ dates, slots, counts, maxItems = 15 }) {
     return out;
   }, [dates, slots, counts]);
 
+  const allNames = useMemo(() => [...new Set(people.map((p) => p.name))], [people]);
+
   if (ranges.length === 0) return null;
   const pad = (n) => String(n).padStart(2, "0");
   const fmtEnd = (s) => {
@@ -291,18 +300,37 @@ function RankingList({ dates, slots, counts, maxItems = 15 }) {
 
   return (
     <div className="ranking-list">
-      <h4>가능 시간 순위 (같은 사람이 연속해서 가능한 구간)</h4>
+      <h4>
+        가능 시간 순위 (같은 사람이 연속해서 가능한 구간)
+        {locationName && <span className="rank-loc-head">📍 {locationName}</span>}
+      </h4>
       <ol>
-        {ranges.slice(0, maxItems).map((r, i) => (
-          <li key={i}>
-            <span className="rank-count">{r.names.length}명</span>
-            <span className="rank-when">
-              {r.date.label}({r.date.dowLabel}) {slots[r.startIdx].label}–{fmtEnd(slots[r.endIdx])}
-            </span>
-            <span className="rank-dur">{fmtDur(r)}</span>
-            <span className="rank-names">{r.names.join(", ")}</span>
-          </li>
-        ))}
+        {ranges.slice(0, maxItems).map((r, i) => {
+          const available = r.names;
+          const unavailable = allNames.filter((n) => !available.includes(n));
+          return (
+            <li key={i}>
+              <div className="rank-head">
+                <span className="rank-count">{available.length}명</span>
+                <span className="rank-when">
+                  {r.date.label}({r.date.dowLabel}) {slots[r.startIdx].label}–{fmtEnd(slots[r.endIdx])}
+                </span>
+                <span className="rank-dur">{fmtDur(r)}</span>
+                {locationName && <span className="rank-loc">📍 {locationName}</span>}
+              </div>
+              <div className="rank-row rank-yes">
+                <span className="rank-tag yes">✓ 가능 {available.length}</span>
+                <span className="rank-names">{available.join(", ")}</span>
+              </div>
+              {unavailable.length > 0 && (
+                <div className="rank-row rank-no">
+                  <span className="rank-tag no">✗ 불가능 {unavailable.length}</span>
+                  <span className="rank-names">{unavailable.join(", ")}</span>
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
