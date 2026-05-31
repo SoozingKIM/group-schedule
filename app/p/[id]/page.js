@@ -39,6 +39,7 @@ export default function ProjectPage({ params }) {
   const [dragOver, setDragOver] = useState(null); // { kind, id }
   const [compare, setCompare] = useState(null); // null | { left: locId, right: locId }
   const [dupModal, setDupModal] = useState(null); // null | { name, locationId, existingLocations, suggestedName }
+  const [locSubTabs, setLocSubTabs] = useState({}); // { locId: lastActiveTabInThatLocation } — 위치 전환 시 복원용
   const [authMode, setAuthMode] = useState("loading"); // 'loading' | 'pending' | 'owner' | 'guest'
   const [authError, setAuthError] = useState(null);
   const [shareModal, setShareModal] = useState(false);
@@ -78,6 +79,42 @@ export default function ProjectPage({ params }) {
     setEditing(false);
     setMultiSel(new Set());
   }, [activeTab]);
+
+  // activeTab이 바뀔 때마다 "이 위치에서 마지막으로 본 하위 탭"을 저장 — 위치 전환 후 복원에 사용
+  useEffect(() => {
+    if (!project || !activeTab) return;
+    let locKey = null;
+    if (activeTab.startsWith("overview:")) locKey = activeTab.slice("overview:".length);
+    else if (activeTab.startsWith("multi:")) locKey = activeTab.slice("multi:".length);
+    else {
+      const team = (project.teams || []).find((t) => t.id === activeTab);
+      if (team) locKey = team.locationId || "";
+      else {
+        const person = project.people.find((p) => p.id === activeTab);
+        if (person) locKey = person.locationId || "";
+      }
+    }
+    if (locKey !== null) {
+      setLocSubTabs((prev) => (prev[locKey] === activeTab ? prev : { ...prev, [locKey]: activeTab }));
+    }
+  }, [activeTab, project?.id]);
+
+  // 위치 탭 클릭 시 호출 — 저장된 하위 탭이 있으면 거기로, 없으면 그 위치의 전체취합으로
+  function gotoLocation(locId) {
+    const key = locId || "";
+    const saved = locSubTabs[key];
+    if (saved && project) {
+      if (saved.startsWith("overview:") || saved.startsWith("multi:")) {
+        setActiveTab(saved);
+        return;
+      }
+      const team = (project.teams || []).find((t) => t.id === saved);
+      if (team && (team.locationId || "") === key) { setActiveTab(saved); return; }
+      const person = project.people.find((p) => p.id === saved);
+      if (person && (person.locationId || "") === key) { setActiveTab(saved); return; }
+    }
+    setActiveTab(`overview:${key}`);
+  }
 
   const revRef = useRef(0);
   const loadedIdRef = useRef(null);
@@ -697,7 +734,7 @@ export default function ProjectPage({ params }) {
                     onDragOver={isOwner ? (e) => onTabDragOver(e, "location", loc.id) : undefined}
                     onDrop={isOwner ? (e) => onTabDrop(e, "location", loc.id) : undefined}
                     onDragEnd={isOwner ? onTabDragEnd : undefined}
-                    onClick={() => setActiveTab(`overview:${loc.id}`)}
+                    onClick={() => gotoLocation(loc.id)}
                   >
                     📍 {loc.name} <span className="tab-count">({count}명)</span>
                   </button>
@@ -706,7 +743,7 @@ export default function ProjectPage({ params }) {
               {(orphanCount > 0 || locs.length === 0) && (
                 <button
                   className={"tab loc-tab" + (activeLocId === null ? " active" : "")}
-                  onClick={() => setActiveTab("overview:")}
+                  onClick={() => gotoLocation("")}
                 >
                   📍 개인 <span className="tab-count">({orphanCount}명)</span>
                 </button>
