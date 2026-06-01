@@ -632,28 +632,33 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
   td.heat { min-width: 24px; }
 }
 
-/* 🗓 전체 일정 달력 모달 */
-.event-cal-modal { width: 880px; max-width: 96vw; max-height: 92vh; overflow-y: auto; }
-.event-cal-modal.big { width: 1200px; }
-.event-cal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.event-cal-months { display: flex; flex-direction: column; gap: 18px; margin: 8px 0; }
+/* 🗓 전체 일정 달력 — 메인 영역을 통째로 차지하는 풀스크린 페이지 */
+.event-cal-page {
+  background: #fff;
+  border: 1px solid #e1e4eb;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin: 12px 0;
+}
+.event-cal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.event-cal-months { display: flex; flex-direction: column; gap: 18px; }
 .month-cal {
   border: 1px solid #e1e4eb;
   border-radius: 8px;
-  padding: 10px;
-  background: #fff;
+  padding: 12px;
+  background: #fcfcfd;
 }
-.month-cal-title { font-weight: 700; font-size: 15px; margin-bottom: 8px; color: #1f2330; }
+.month-cal-title { font-weight: 700; font-size: 17px; margin-bottom: 10px; color: #1f2330; }
 .month-cal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
-  margin-bottom: 5px;
+  gap: 4px;
+  margin-bottom: 6px;
 }
 .month-cal-wd {
   text-align: center;
-  font-size: 11px;
-  padding: 5px 0;
+  font-size: 12px;
+  padding: 6px 0;
   color: #4a5063;
   font-weight: 600;
   background: #f6f7fb;
@@ -661,69 +666,75 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
 }
 .month-cal-wd.sat { color: #2b6cb0; }
 .month-cal-wd.sun { color: #c5363a; }
-.month-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.month-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .month-cal-day {
-  min-height: 92px;
+  min-height: 130px;
   border: 1px solid #e9ecf1;
-  border-radius: 4px;
-  padding: 4px;
+  border-radius: 5px;
+  padding: 6px;
   background: #fff;
   font-size: 11px;
   position: relative;
-  /* 글씨가 길어 셀 안에 자연스럽게 흐를 수 있게 — overflow visible 유지 */
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
-.event-cal-modal.big .month-cal-day { min-height: 150px; padding: 6px; }
-.event-cal-modal.big .month-cal { padding: 14px; }
-.event-cal-modal.big .month-cal-title { font-size: 17px; }
-.event-cal-modal.big .day-num { font-size: 14px; margin-bottom: 5px; }
 .month-cal-day.blank { background: transparent; border-color: transparent; }
 .month-cal-day.sat .day-num { color: #2b6cb0; }
 .month-cal-day.sun .day-num { color: #c5363a; }
-.day-num { font-weight: 700; font-size: 12px; margin-bottom: 3px; line-height: 1; }
-/* 칩 — 글씨가 잘리지 않도록 wrap, 멀티라인 친화 */
+.day-num { font-weight: 700; font-size: 13px; line-height: 1; margin-bottom: 2px; }
+
+/* 칩 — 제목·시간을 위·아래로 분리해 시간이 자리 안 차지하게, ×는 호버 시만 보임 */
 .day-evt {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-  align-items: baseline;
-  background: #fee5e6;
+  position: relative;
+  background: #fff5f5;
   color: #1f2330;
   border-left: 3px solid #e5484d;
-  padding: 3px 5px;
-  margin-bottom: 3px;
-  border-radius: 3px;
-  font-size: 10.5px;
-  line-height: 1.35;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.3;
   cursor: default;
 }
-.day-evt.clickable { cursor: pointer; }
-.day-evt.clickable:hover { background: #fdd6d8; }
-.day-evt-time { color: #c5363a; font-weight: 700; flex-shrink: 0; }
-.day-evt-end { color: #8a4548; font-size: 9.5px; flex-shrink: 0; opacity: 0.85; }
+.day-evt.clickable { cursor: pointer; transition: background 0.1s; }
+.day-evt.clickable:hover { background: #fee5e6; }
+.day-evt-body { min-width: 0; }
 .day-evt-title {
-  flex: 1;
-  min-width: 0;
-  font-weight: 500;
+  font-weight: 600;
   word-break: break-word;
   overflow-wrap: anywhere;
-  white-space: normal;
+  color: #1f2330;
+  margin-bottom: 1px;
 }
+.day-evt-time {
+  font-size: 10px;
+  color: #c5363a;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+/* × 버튼 — 평소엔 안 보이다가, 칩 호버 시 우상단에 떠오름 */
 .day-evt-del {
-  background: none;
-  border: none;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(255, 245, 245, 0.95);
+  border: 1px solid transparent;
   cursor: pointer;
-  color: #4a5063;
-  padding: 0 3px;
-  font-size: 14px;
+  color: #8a4548;
+  width: 18px;
+  height: 18px;
   line-height: 1;
-  border-radius: 2px;
-  flex-shrink: 0;
-  align-self: center;
+  font-size: 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
 }
-.day-evt-del:hover { color: #c5363a; background: rgba(229,72,77,0.08); }
-.event-cal-modal.big .day-evt { font-size: 12px; padding: 4px 6px; }
-.event-cal-modal.big .day-evt-time { font-size: 12px; }
-.event-cal-modal.big .day-evt-end { font-size: 11px; }
+.day-evt:hover .day-evt-del { opacity: 1; }
+.day-evt-del:hover { background: #e5484d; color: #fff; border-color: #c5363a; }
 
 /* ✎ 일정 수정 모달 */
 .event-edit-modal { width: 440px; max-width: 96vw; }
@@ -756,15 +767,39 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
 .evt-edit-row input:focus, .evt-edit-row textarea:focus { outline: none; border-color: #4f6ef7; }
 .evt-edit-row textarea { resize: vertical; min-height: 56px; }
 
+/* '전체 일정 보기' 토글 버튼 — proj-head에서 사용 */
+.view-switch-btn {
+  margin-left: auto;
+  background: #fff;
+  color: #4f6ef7;
+  border: 1px solid #4f6ef7;
+  font-size: 13px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.view-switch-btn:hover { background: #eef2ff; }
+.view-switch-btn.active {
+  background: #4f6ef7;
+  color: #fff;
+}
+.view-switch-btn.active:hover { background: #3a59e8; }
+
 @media (max-width: 720px) {
-  .event-cal-modal { padding: 12px; }
-  .event-cal-modal.big { width: 96vw; }
-  .month-cal-day { min-height: 68px; padding: 3px; }
-  .event-cal-modal.big .month-cal-day { min-height: 110px; }
+  .event-cal-page { padding: 12px; }
+  .month-cal { padding: 8px; }
+  .month-cal-title { font-size: 14px; }
+  .month-cal-day { min-height: 70px; padding: 3px; gap: 1px; }
   .day-num { font-size: 11px; }
-  .day-evt { font-size: 9.5px; padding: 2px 4px; gap: 2px; }
-  .day-evt-time { font-size: 9.5px; }
-  .day-evt-end { display: none; }
+  .day-evt { font-size: 10px; padding: 2px 4px; }
+  .day-evt-title { font-size: 10px; }
+  .day-evt-time { font-size: 9px; }
+  /* 모바일에선 ×가 항상 보이도록 (hover가 없음) */
+  .day-evt-del { opacity: 1; width: 16px; height: 16px; font-size: 12px; }
+  .view-switch-btn { font-size: 12px; padding: 6px 10px; }
 }
 
 /* '색 수정' 버튼 — person-bar에서 사용 */

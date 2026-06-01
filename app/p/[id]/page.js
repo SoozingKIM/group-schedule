@@ -49,7 +49,8 @@ export default function ProjectPage({ params }) {
   const [authError, setAuthError] = useState(null);
   const [shareModal, setShareModal] = useState(false);
   const [colorModal, setColorModal] = useState(false); // 🎨 색 수정 모달
-  const [eventCalModal, setEventCalModal] = useState(false); // 🗓 전체 일정 달력 모달
+  // 'schedule' = 기본 표 화면 / 'calendar' = 전체 일정 달력 (전체 영역 차지)
+  const [view, setView] = useState("schedule");
   const [eventEditing, setEventEditing] = useState(null); // 수정 중인 일정 객체
 
   // 권한: 프로젝트 로드 시 세션에서 권한 복원 또는 게이트
@@ -707,8 +708,6 @@ export default function ProjectPage({ params }) {
         onDelete={isOwner ? deleteProject : null}
         onHome={() => router.push("/")}
         protectionOn={!!project.adminPassword || !!project.sharePassword}
-        onShowCalendar={() => setEventCalModal(true)}
-        eventCount={(project.events || []).length}
       />
 
       <div className="container">
@@ -731,8 +730,27 @@ export default function ProjectPage({ params }) {
               ? `✓ 변경 시 자동 저장됨 · 마지막 저장 ${lastSaved.toLocaleTimeString("ko-KR")}`
               : "✓ 모든 변경은 자동 저장됩니다"}
           </span>
+          <button
+            type="button"
+            className={"view-switch-btn" + (view === "calendar" ? " active" : "")}
+            onClick={() => setView(view === "calendar" ? "schedule" : "calendar")}
+            title="잡힌 일정을 달력으로 봅니다"
+          >
+            {view === "calendar" ? "← 일정 표로 돌아가기" : `🗓 전체 일정 보기${(project.events || []).length ? ` (${project.events.length})` : ""}`}
+          </button>
         </div>
 
+        {view === "calendar" ? (
+          <EventCalendarPage
+            events={project.events || []}
+            config={project.config}
+            dateColors={project.dateColors || {}}
+            canDelete={isOwner}
+            onDeleteEvent={removeEvent}
+            onEditEvent={isOwner ? (ev) => setEventEditing(ev) : null}
+          />
+        ) : (
+        <>
         {/* 설정 */}
         <div className="panel">
           <h4>표 설정 (30분 단위) · 종료시간을 시작시간보다 빠르게 두면 익일까지 이어집니다</h4>
@@ -1137,6 +1155,8 @@ export default function ProjectPage({ params }) {
         ) : null}
         </>
         )}
+        </>
+        )}
 
         {(() => {
           const hasNotes = !!(project.notes && project.notes.trim());
@@ -1197,17 +1217,6 @@ export default function ProjectPage({ params }) {
           project={project}
           onSave={(dc) => { saveDateColors(dc); setColorModal(false); }}
           onClose={() => setColorModal(false)}
-        />
-      )}
-      {eventCalModal && (
-        <EventCalendarModal
-          events={project.events || []}
-          config={project.config}
-          dateColors={project.dateColors || {}}
-          canDelete={isOwner}
-          onDeleteEvent={removeEvent}
-          onEditEvent={isOwner ? (ev) => setEventEditing(ev) : null}
-          onClose={() => setEventCalModal(false)}
         />
       )}
       {eventEditing && (
@@ -1434,9 +1443,8 @@ function EventEditModal({ event, onSave, onDelete, onClose }) {
   );
 }
 
-// 전체 일정 달력 모달 — 잡힌 일정을 월별 달력에 표시
-function EventCalendarModal({ events, config, dateColors, canDelete, onDeleteEvent, onEditEvent, onClose }) {
-  const [big, setBig] = useState(false); // '크게 보기' 토글 — 셀 크기와 모달 폭을 확장
+// 전체 일정 달력 — 메인 화면을 통째로 차지하는 풀스크린 뷰
+function EventCalendarPage({ events, config, dateColors, canDelete, onDeleteEvent, onEditEvent }) {
   // 날짜별 일정 묶음 + startTime 기준 정렬
   const byDate = useMemo(() => {
     const m = new Map();
@@ -1477,59 +1485,39 @@ function EventCalendarModal({ events, config, dateColors, canDelete, onDeleteEve
     });
   }, [byDate, config]);
 
-  // ESC로 닫기
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   function handleDelete(ev) {
     if (!onDeleteEvent) return;
     if (window.confirm(`"${ev.title}" 일정을 삭제할까요?`)) onDeleteEvent(ev.id);
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className={"modal event-cal-modal" + (big ? " big" : "")} onClick={(e) => e.stopPropagation()}>
-        <div className="event-cal-head">
-          <h3 style={{ margin: 0 }}>🗓 전체 일정{events.length > 0 ? ` (${events.length}개)` : ""}</h3>
-          <span style={{ flex: 1 }} />
-          <button
-            type="button"
-            className="btn small"
-            onClick={() => setBig((v) => !v)}
-            title="달력 크기를 토글합니다"
-          >
-            {big ? "🔍 보통 크기" : "🔍 크게 보기"}
-          </button>
-        </div>
-        {events.length === 0 ? (
-          <div className="empty-hint" style={{ padding: "24px 12px" }}>
-            아직 잡힌 일정이 없습니다. 전체취합 표에서 <strong>📅 일정 잡기</strong>를 켜고 셀을 드래그해 추가할 수 있어요.
-          </div>
-        ) : (
-          <div className="event-cal-months">
-            {months.map(({ year, month }) => (
-              <MonthCalendar
-                key={`${year}-${month}`}
-                year={year}
-                month={month}
-                byDate={byDate}
-                dateColors={dateColors}
-                canDelete={canDelete}
-                onDelete={handleDelete}
-                onEdit={onEditEvent}
-              />
-            ))}
-          </div>
-        )}
-        <div className="modal-actions">
-          {onEditEvent && <span className="hint">💡 일정을 클릭하면 수정할 수 있어요</span>}
-          <span style={{ flex: 1 }} />
-          <button type="button" className="btn" onClick={onClose}>닫기</button>
-        </div>
+    <div className="event-cal-page">
+      <div className="event-cal-head">
+        <h3 style={{ margin: 0 }}>🗓 전체 일정{events.length > 0 ? ` (${events.length}개)` : ""}</h3>
+        <span style={{ flex: 1 }} />
+        {onEditEvent && <span className="hint">💡 일정을 클릭하면 수정할 수 있어요</span>}
       </div>
+      {events.length === 0 ? (
+        <div className="empty-hint" style={{ padding: "40px 12px", textAlign: "center" }}>
+          아직 잡힌 일정이 없습니다.<br />
+          <span className="hint">전체취합 표에서 <strong>📅 일정 잡기</strong>를 켜고 셀을 드래그해 추가할 수 있어요.</span>
+        </div>
+      ) : (
+        <div className="event-cal-months">
+          {months.map(({ year, month }) => (
+            <MonthCalendar
+              key={`${year}-${month}`}
+              year={year}
+              month={month}
+              byDate={byDate}
+              dateColors={dateColors}
+              canDelete={canDelete}
+              onDelete={handleDelete}
+              onEdit={onEditEvent}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1576,9 +1564,10 @@ function MonthCalendar({ year, month, byDate, dateColors, canDelete, onDelete, o
                   title={`${ev.startTime}–${ev.endTime} ${ev.title}${ev.description ? `\n${ev.description}` : ""}${onEdit ? "\n(클릭하면 수정)" : ""}`}
                   onClick={onEdit ? () => onEdit(ev) : undefined}
                 >
-                  <span className="day-evt-time">{ev.startTime}</span>
-                  <span className="day-evt-title">{ev.title}</span>
-                  <span className="day-evt-end">~{ev.endTime}</span>
+                  <div className="day-evt-body">
+                    <div className="day-evt-title">{ev.title}</div>
+                    <div className="day-evt-time">{ev.startTime}–{ev.endTime}</div>
+                  </div>
                   {canDelete && onDelete && (
                     <button
                       type="button"
@@ -1944,18 +1933,13 @@ function EventModeButton({ on, onToggle }) {
   );
 }
 
-function Topbar({ onShare, onShareSettings, onDelete, onHome, protectionOn, onShowCalendar, eventCount = 0 }) {
+function Topbar({ onShare, onShareSettings, onDelete, onHome, protectionOn }) {
   return (
     <div className="topbar">
       <span className="brand" style={{ cursor: onHome ? "pointer" : "default" }} onClick={onHome || undefined}>
         📅 일정 취합
       </span>
       <span className="spacer" />
-      {onShowCalendar && (
-        <button className="btn small" onClick={onShowCalendar} title="잡힌 일정을 달력으로 봅니다">
-          🗓 전체 일정{eventCount > 0 ? ` (${eventCount})` : ""}
-        </button>
-      )}
       {onShareSettings && (
         <button className="btn small" onClick={onShareSettings} title="공유 비밀번호 설정">
           {protectionOn ? "🔒 공유 설정" : "🔓 공유 설정"}
