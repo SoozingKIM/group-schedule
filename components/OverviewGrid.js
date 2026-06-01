@@ -78,6 +78,20 @@ export default function OverviewGrid({ config, people, locationName, events = []
   const [eventDrag, setEventDrag] = useState(null); // { cIdx, startR, endR }
   const [eventInput, setEventInput] = useState(null); // { date, dt, startR, endR, x, y }
   const [hoverEvent, setHoverEvent] = useState(null); // { event, x, y }
+  const hoverCloseTimer = useRef(null);
+  function keepHoverOpen() {
+    if (hoverCloseTimer.current) {
+      clearTimeout(hoverCloseTimer.current);
+      hoverCloseTimer.current = null;
+    }
+  }
+  function scheduleHoverClose() {
+    if (hoverCloseTimer.current) clearTimeout(hoverCloseTimer.current);
+    hoverCloseTimer.current = setTimeout(() => {
+      hoverCloseTimer.current = null;
+      setHoverEvent(null);
+    }, 250);
+  }
 
   // 모드 종료 시 상태 정리
   useEffect(() => {
@@ -374,13 +388,13 @@ export default function OverviewGrid({ config, people, locationName, events = []
                             key={event.id}
                             className="evt-badge"
                             onMouseEnter={(e) => {
-                              if (eventMode) return; // 일정 모드에선 드래그 우선
+                              keepHoverOpen();
                               setHoverEvent({ event, x: e.clientX, y: e.clientY });
                             }}
                             onMouseMove={(e) => {
                               setHoverEvent((h) => (h && h.event.id === event.id ? { ...h, x: e.clientX, y: e.clientY } : h));
                             }}
-                            onMouseLeave={() => setHoverEvent(null)}
+                            onMouseLeave={scheduleHoverClose}
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
                             title={event.title}
@@ -438,18 +452,20 @@ export default function OverviewGrid({ config, people, locationName, events = []
           event={hoverEvent.event}
           x={hoverEvent.x}
           y={hoverEvent.y}
-          canDelete={!!onDeleteEvent && eventMode}
-          canEdit={!!onEditEvent && eventMode}
+          canDelete={!!onDeleteEvent}
+          canEdit={!!onEditEvent}
           onDelete={() => {
+            keepHoverOpen();
             if (onDeleteEvent) onDeleteEvent(hoverEvent.event.id);
             setHoverEvent(null);
           }}
           onEdit={() => {
+            keepHoverOpen();
             if (onEditEvent) onEditEvent(hoverEvent.event);
             setHoverEvent(null);
           }}
-          onMouseEnter={() => { /* 유지 */ }}
-          onMouseLeave={() => setHoverEvent(null)}
+          onMouseEnter={keepHoverOpen}
+          onMouseLeave={scheduleHoverClose}
         />
       )}
 
