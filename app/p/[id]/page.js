@@ -822,7 +822,7 @@ export default function ProjectPage({ params }) {
             )}
             {isGuest && (
               <span className="hint" style={{ marginLeft: 4 }}>
-                (공유 모드: <strong>{localViewCfg ? "본인 화면에만" : "변경 후 ‘적용’을 누르면 본인 화면에만"} 적용</strong>)
+                (사용자 모드: <strong>{localViewCfg ? "본인 화면에만" : "변경 후 ‘적용’을 누르면 본인 화면에만"} 적용</strong>)
               </span>
             )}
           </div>
@@ -1028,6 +1028,12 @@ export default function ProjectPage({ params }) {
         })()}
         </div>
 
+        {/* 프로젝트 전역 — 위치와 무관한 잡힌 일정 모음 */}
+        <div className="project-wide-bar">
+          <span className="project-wide-bar-label">🌐 전체 위치 통합</span>
+          <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
+        </div>
+
         {/* 내용 — 표 입력 영역 (선택 영역 카드와 시각적으로 구분) */}
         {isOverviewTab ? (
           <>
@@ -1049,7 +1055,6 @@ export default function ProjectPage({ params }) {
                   <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
                 </>
               )}
-              <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
             </div>
             <OverviewGrid
               config={viewConfig}
@@ -1096,7 +1101,6 @@ export default function ProjectPage({ params }) {
               {isOwner && multiSel.size > 0 && (
                 <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
               )}
-              <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
             </div>
             {multiSel.size === 0 ? (
               <div className="empty-hint">위에서 한 명 이상 선택하면 그 사람들의 일정을 합쳐서 봅니다.</div>
@@ -1134,7 +1138,6 @@ export default function ProjectPage({ params }) {
                   <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
                 </>
               )}
-              <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
             </div>
             <TeamScheduleView
               team={activeTeam}
@@ -1230,7 +1233,7 @@ export default function ProjectPage({ params }) {
                 <textarea
                   className="side-memo-input"
                   defaultValue={project.notes || ""}
-                  placeholder={isGuest ? "(공유 모드: 읽기 전용)" : "여기에 자유롭게 메모하세요. 포커스를 잃을 때 자동 저장됩니다."}
+                  placeholder={isGuest ? "(사용자 모드: 읽기 전용)" : "여기에 자유롭게 메모하세요. 포커스를 잃을 때 자동 저장됩니다."}
                   readOnly={isGuest}
                   onBlur={(e) => !isGuest && saveProjectNotes(e.target.value)}
                   key={`notes-${project.id}-${project.rev}`}
@@ -2149,8 +2152,8 @@ function Topbar({ onShare, onShareSettings, onDelete, onHome, protectionOn, gues
         📅 일정 취합
       </span>
       {guestHint && (
-        <span className="topbar-guest-hint" title="공유 모드: 본인 일정만 입력할 수 있어요">
-          👤 공유 모드 · 본인 일정만 입력 가능
+        <span className="topbar-guest-hint" title="사용자 모드: 본인 일정만 입력할 수 있어요">
+          👤 사용자 모드 · 본인 일정만 입력 가능
         </span>
       )}
       <span className="spacer" />

@@ -875,7 +875,7 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
   margin-top: 3px;
 }
 
-/* 게스트(공유 모드) 안내 — 상단 바에 작게 표시 */
+/* 게스트(사용자 모드) 안내 — 상단 바에 작게 표시 */
 .topbar-guest-hint {
   margin-left: 12px;
   padding: 3px 9px;
@@ -891,7 +891,7 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
   .topbar-guest-hint { font-size: 10.5px; padding: 2px 7px; }
 }
 
-/* '🗓 전체 일정' 버튼 — 일정 잡기 옆에 두는 작은 버튼 */
+/* '🗓 전체 일정' 버튼 — 위치 무관한 프로젝트 전역 일정 진입점 */
 .calendar-btn {
   background: #fff;
   color: #4f6ef7;
@@ -899,6 +899,27 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
   font-weight: 600;
 }
 .calendar-btn:hover { background: #eef2ff; }
+
+/* 프로젝트 전역 바 — 모든 위치에 걸치는 일정 모음 진입선 */
+.project-wide-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  margin: 0 0 16px;
+  background: linear-gradient(90deg, #eef2ff 0%, #f5f7fb 100%);
+  border: 1px solid #d8dce4;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.project-wide-bar-label {
+  font-weight: 600;
+  color: #3a59e8;
+  flex: 1;
+}
+@media (max-width: 560px) {
+  .project-wide-bar { padding: 7px 10px; font-size: 12px; gap: 8px; }
+}
 
 @media (max-width: 720px) {
   .event-cal-page { padding: 12px; }
