@@ -841,8 +841,34 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
   color: #1f2330;
   word-break: break-word;
   overflow-wrap: anywhere;
-  line-height: 1.35;
+  line-height: 1.4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
+.actor-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.actor-badge.owner {
+  background: #fff4dc;
+  color: #9b6a00;
+  border: 1px solid #f3c66b;
+}
+.actor-badge.guest {
+  background: #eef2ff;
+  color: #3a59e8;
+  border: 1px solid #c8d2fb;
+}
+.activity-item.actor-owner { border-left: 3px solid #f3c66b; }
+.activity-item.actor-guest { border-left: 3px solid #c8d2fb; }
 .activity-time {
   font-size: 11px;
   color: var(--muted);

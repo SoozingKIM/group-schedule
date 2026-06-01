@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, setActor } from "@/lib/api";
 import { toast } from "@/lib/ui";
 import ScheduleGrid from "@/components/ScheduleGrid";
 import OverviewGrid from "@/components/OverviewGrid";
@@ -32,6 +32,7 @@ export default function ProjectPage({ params }) {
   const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState("overview"); // 'overview' | 'multi' | personId
   const [cfg, setCfg] = useState(null); // 설정 입력 임시값
+  const [localViewCfg, setLocalViewCfg] = useState(null); // 게스트가 본인 화면에만 적용하는 보기 범위
   const [saving, setSaving] = useState(false); // 저장 중 여부
   const [lastSaved, setLastSaved] = useState(null); // 마지막 자동 저장 시각
   const [editing, setEditing] = useState(false); // 사람 탭에서 일정 수정 모드
@@ -100,6 +101,10 @@ export default function ProjectPage({ params }) {
   }
   const isOwner = authMode === "owner";
   const isGuest = authMode === "guest";
+  // API 요청의 X-Actor 헤더에 사용 — 활동 로그가 누가 한 변경인지 알 수 있게
+  useEffect(() => {
+    if (authMode === "owner" || authMode === "guest") setActor(authMode);
+  }, [authMode]);
 
   // 탭이 바뀌면 수정 모드 OFF + 여러명 보기 선택 초기화
   useEffect(() => {
@@ -252,18 +257,28 @@ export default function ProjectPage({ params }) {
   }
 
   // ---- 설정 적용 ----
+  //   · 관리자(owner): 서버에 저장 → 모든 참여자에게 반영
+  //   · 게스트: 본인 화면에만 적용 (localViewCfg) — 다른 사람한테 안 보임
   async function applyConfig() {
     if (cfg.endDate < cfg.startDate) return toast("종료일은 시작일과 같거나 이후여야 합니다.");
-    // 종료시간이 시작시간보다 빠르면 익일까지 이어지는 야간 일정으로 처리됩니다.
+    if (isGuest) {
+      setLocalViewCfg({ ...cfg, slotMinutes: 30 });
+      toast("본인 화면에만 보기 범위가 적용됐어요");
+      return;
+    }
     try {
       const p = await persist(api.patch(`/api/projects/${id}`, { config: cfg }));
       revRef.current = p.rev || 0;
       setProject(p);
+      // 서버 설정이 바뀌면 게스트가 만져둔 로컬 뷰는 의미 없어지므로 초기화
+      setLocalViewCfg(null);
       toast("표를 다시 만들었습니다");
     } catch (e) {
       toast(e.message);
     }
   }
+  // 모든 그리드/달력이 사용할 보기 범위 (게스트 로컬 변경 우선)
+  const viewConfig = localViewCfg || project?.config || null;
 
   // ---- 날짜별 색 ----
   async function saveDateColors(dateColors) {
@@ -759,7 +774,7 @@ export default function ProjectPage({ params }) {
         {view === "calendar" ? (
           <EventCalendarPage
             events={project.events || []}
-            config={project.config}
+            config={viewConfig}
             dateColors={project.dateColors || {}}
             canDelete={isOwner}
             onDeleteEvent={removeEvent}
@@ -791,6 +806,25 @@ export default function ProjectPage({ params }) {
             <button className="btn primary" onClick={applyConfig}>
               적용
             </button>
+            {isGuest && localViewCfg && (
+              <button
+                type="button"
+                className="btn small"
+                onClick={() => {
+                  setLocalViewCfg(null);
+                  setCfg({ ...project.config });
+                  toast("관리자가 정한 기본 보기로 돌아왔어요");
+                }}
+                title="본인 보기 범위를 해제하고 관리자 설정으로 돌아갑니다"
+              >
+                ↺ 기본으로
+              </button>
+            )}
+            {isGuest && (
+              <span className="hint" style={{ marginLeft: 4 }}>
+                (공유 모드: <strong>{localViewCfg ? "본인 화면에만" : "변경 후 ‘적용’을 누르면 본인 화면에만"} 적용</strong>)
+              </span>
+            )}
           </div>
         </div>
 
@@ -1018,7 +1052,7 @@ export default function ProjectPage({ params }) {
               <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
             </div>
             <OverviewGrid
-              config={project.config}
+              config={viewConfig}
               people={activeLocPeople}
               locationName={activeLoc ? activeLoc.name : "개인"}
               events={project.events || []}
@@ -1068,7 +1102,7 @@ export default function ProjectPage({ params }) {
               <div className="empty-hint">위에서 한 명 이상 선택하면 그 사람들의 일정을 합쳐서 봅니다.</div>
             ) : (
               <OverviewGrid
-                config={project.config}
+                config={viewConfig}
                 people={activeLocPeople.filter((p) => multiSel.has(p.id))}
                 locationName={activeLoc ? activeLoc.name : "개인"}
                 events={project.events || []}
@@ -1104,7 +1138,7 @@ export default function ProjectPage({ params }) {
             </div>
             <TeamScheduleView
               team={activeTeam}
-              config={project.config}
+              config={viewConfig}
               people={project.people.filter((p) => activeTeam.memberIds.includes(p.id))}
               locationName={(project.locations || []).find((l) => l.id === activeTeam.locationId)?.name || "개인"}
               events={project.events || []}
@@ -1160,7 +1194,7 @@ export default function ProjectPage({ params }) {
               </span>
             </div>
             <ScheduleGrid
-              config={project.config}
+              config={viewConfig}
               person={activePerson}
               editing={editing}
               onCommitSlots={(slots) => commitSlots(activePerson.id, slots)}
@@ -1335,7 +1369,7 @@ function CompareView({ project, compare, setCompare }) {
           <span className="hint">전체 취합 · 칸 클릭하여 인원 고정</span>
         </div>
         <OverviewGrid
-          config={project.config}
+          config={viewConfig}
           people={people}
           locationName={loc?.name || "?"}
           events={project.events || []}
@@ -1398,10 +1432,12 @@ function ActivityLogModal({ activities, onClose }) {
     () => [...(activities || [])].sort((a, b) => (b.ts || 0) - (a.ts || 0)),
     [activities]
   );
-  const [filter, setFilter] = useState("all"); // all | person | event | config | other
+  const [filter, setFilter] = useState("all"); // all | person | event | config | other | guest | owner
 
   function matchesFilter(a) {
     if (filter === "all") return true;
+    if (filter === "guest") return a.actor === "guest";
+    if (filter === "owner") return a.actor === "owner";
     if (filter === "person") return a.type?.startsWith("person.");
     if (filter === "event") return a.type?.startsWith("event.");
     if (filter === "config") return a.type === "config" || a.type === "project.rename" || a.type === "notes" || a.type === "color" || a.type === "reorder";
@@ -1409,6 +1445,8 @@ function ActivityLogModal({ activities, onClose }) {
     return true;
   }
   const filtered = sorted.filter(matchesFilter);
+  const guestCount = sorted.filter((a) => a.actor === "guest").length;
+  const ownerCount = sorted.filter((a) => a.actor === "owner").length;
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
@@ -1441,6 +1479,8 @@ function ActivityLogModal({ activities, onClose }) {
         <div className="activity-filter-row">
           {[
             { k: "all", label: `전체 ${sorted.length}` },
+            { k: "owner", label: `👑 관리자 ${ownerCount}` },
+            { k: "guest", label: `👤 참여자 ${guestCount}` },
             { k: "person", label: "사람" },
             { k: "event", label: "일정" },
             { k: "config", label: "설정" },
@@ -1463,10 +1503,14 @@ function ActivityLogModal({ activities, onClose }) {
         ) : (
           <ol className="activity-list">
             {filtered.map((a) => (
-              <li key={a.id} className="activity-item">
+              <li key={a.id} className={"activity-item actor-" + (a.actor || "unknown")}>
                 <span className="activity-icon">{iconFor(a.type)}</span>
                 <div className="activity-body">
-                  <div className="activity-summary">{a.summary}</div>
+                  <div className="activity-summary">
+                    {a.actor === "owner" && <span className="actor-badge owner">👑 관리자</span>}
+                    {a.actor === "guest" && <span className="actor-badge guest">👤 참여자</span>}
+                    <span>{a.summary}</span>
+                  </div>
                   <div className="activity-time">{formatTimestamp(a.ts)}</div>
                 </div>
               </li>
