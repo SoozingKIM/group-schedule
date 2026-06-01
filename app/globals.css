@@ -376,17 +376,22 @@ td.slot:hover { background: #eef1ff; }
 .grid-wrap.read-only td.slot.selected:hover { background: var(--primary); }
 .grid-wrap.read-only .memo-input { cursor: default; color: var(--text); }
 
-/* 특정 날짜 범위 강조 (6월 23~29일 등) — 붉은 테두리 + 범위 안의 셀 색은 붉은 계열로 */
-table.grid th.date-h.marked-col { border-top: 1.5px solid rgba(229, 72, 77, 0.55); }
-table.grid .marked-col-first { border-left: 1.5px solid rgba(229, 72, 77, 0.55); }
-table.grid .marked-col-last { border-right: 1.5px solid rgba(229, 72, 77, 0.55); }
-table.grid tbody tr:last-child td.marked-col { border-bottom: 1.5px solid rgba(229, 72, 77, 0.55); }
-table.grid th.date-h.marked-col { background: rgba(229, 72, 77, 0.06); color: #b8383d; }
-/* 선택된 일정 칸 — 범위 안에서는 붉게 (편집 표) */
-table.grid td.slot.selected.marked-col { background: #e5484d; }
-table.grid td.slot.marked-col:hover { background: #ffd6d8 !important; }
+/* 날짜별 강조색 — 셀의 --marked-color CSS 변수로 동적 적용 */
+table.grid th.date-h.marked-col { border-top: 1.5px solid var(--marked-color, rgba(229,72,77,0.55)); }
+table.grid .marked-col-first { border-left: 1.5px solid var(--marked-color, rgba(229,72,77,0.55)); }
+table.grid .marked-col-last { border-right: 1.5px solid var(--marked-color, rgba(229,72,77,0.55)); }
+table.grid tbody tr:last-child td.marked-col { border-bottom: 1.5px solid var(--marked-color, rgba(229,72,77,0.55)); }
+table.grid th.date-h.marked-col {
+  background: color-mix(in srgb, var(--marked-color, #e5484d) 8%, transparent);
+  color: color-mix(in srgb, var(--marked-color, #e5484d) 75%, #1f2330);
+}
+/* 선택된 일정 칸 — 범위 안에서는 해당 색으로 (편집 표) */
+table.grid td.slot.selected.marked-col { background: var(--marked-color, #e5484d); }
+table.grid td.slot.marked-col:hover {
+  background: color-mix(in srgb, var(--marked-color, #e5484d) 25%, white) !important;
+}
 table.grid td.slot.selected.marked-col.hover-col,
-table.grid td.slot.selected.marked-col.hover-row { background: #e5484d; }
+table.grid td.slot.selected.marked-col.hover-row { background: var(--marked-color, #e5484d); }
 
 /* 가로/세로 보조선 — JS가 hover-row/hover-col 클래스를 부여 */
 /* 호버한 셀 자체 — 진한 강조 */
@@ -627,6 +632,105 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
   td.heat { min-width: 24px; }
 }
 
+/* '색 수정' 버튼 — person-bar에서 사용 */
+.color-edit-btn {
+  margin-left: auto;
+  background: #fff;
+  color: #4a5063;
+  border: 1px solid #d8dce4;
+}
+.color-edit-btn:hover { background: #f0f2f6; }
+/* 일정 잡기 버튼이 같이 있을 때 margin-left: auto 충돌 방지 */
+.person-bar > .color-edit-btn + .event-mode-btn { margin-left: 4px; }
+
+/* 🎨 색 수정 모달 */
+.color-edit-modal { width: 540px; max-width: 96vw; max-height: 88vh; overflow: auto; }
+.color-palette-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  background: #f6f7fb;
+  border: 1px solid #e1e4eb;
+  border-radius: 8px;
+  margin: 8px 0;
+}
+.color-palette-label {
+  font-size: 12px;
+  color: #4a5063;
+  margin-right: 4px;
+}
+.color-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.08s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+.color-swatch:hover { transform: scale(1.08); }
+.color-swatch.active {
+  border-color: #1f2330;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(31,35,48,0.4);
+}
+.color-swatch-eraser {
+  background: #fff;
+  color: #4a5063;
+  border: 2px dashed #b8bfc9;
+  font-size: 13px;
+  line-height: 22px;
+  text-align: center;
+}
+.color-swatch-eraser.active { border-color: #c5363a; color: #c5363a; }
+.color-date-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid #eaedf2;
+  border-radius: 6px;
+  background: #fff;
+}
+.color-date-cell {
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid #d8dce4;
+  background: #fff;
+  color: #1f2330;
+  cursor: pointer;
+  min-width: 56px;
+  text-align: center;
+  font-weight: 500;
+  transition: transform 0.06s;
+}
+.color-date-cell:hover { transform: translateY(-1px); }
+.color-date-cell.sat { color: #2b6cb0; }
+.color-date-cell.sun { color: #c5363a; }
+.color-date-cell.on { color: #fff !important; font-weight: 600; }
+
+/* '일정 잡기' 토글 버튼 — 타임테이블 위 person-bar에서 사용 */
+.event-mode-btn {
+  margin-left: auto;
+  background: #fff;
+  color: #c5363a;
+  border: 1px solid #e5484d;
+}
+.event-mode-btn:hover { background: #fdebec; }
+.event-mode-btn.on {
+  background: #e5484d;
+  color: #fff;
+  border-color: #e5484d;
+  box-shadow: 0 0 0 2px rgba(229, 72, 77, 0.18);
+}
+.event-mode-btn.on:hover { background: #c5363a; }
+
 /* ───── 일정 잡기(Event) 모드 ───── */
 td.heat { position: relative; }
 table.grid.event-mode td.heat { cursor: crosshair; }
@@ -640,43 +744,37 @@ td.heat.evt-drag {
 td.heat.evt-drag-first { box-shadow: inset 0 2px 0 0 #e5484d, inset 1px 0 0 0 #e5484d, inset -1px 0 0 0 #e5484d; }
 td.heat.evt-drag-last  { box-shadow: inset 0 -2px 0 0 #e5484d, inset 1px 0 0 0 #e5484d, inset -1px 0 0 0 #e5484d; }
 
-/* 저장된 이벤트 셀: 좌우/상하 붉은 테두리 */
-td.heat.evt-cell {
-  box-shadow: inset 1px 0 0 0 #e5484d, inset -1px 0 0 0 #e5484d;
+/* 저장된 이벤트 셀: ::after로 테두리를 셀 위 가장 윗 레이어에 그림 (숫자 안 가림) */
+td.heat.evt-cell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-left: 3px solid #e5484d;
+  border-right: 3px solid #e5484d;
+  z-index: 3;
 }
-td.heat.evt-first {
-  box-shadow: inset 1px 0 0 0 #e5484d, inset -1px 0 0 0 #e5484d, inset 0 2px 0 0 #e5484d;
-}
-td.heat.evt-last {
-  box-shadow: inset 1px 0 0 0 #e5484d, inset -1px 0 0 0 #e5484d, inset 0 -2px 0 0 #e5484d;
-}
-td.heat.evt-first.evt-last {
-  box-shadow:
-    inset 1px 0 0 0 #e5484d,
-    inset -1px 0 0 0 #e5484d,
-    inset 0 2px 0 0 #e5484d,
-    inset 0 -2px 0 0 #e5484d;
-}
+td.heat.evt-first::after { border-top: 3px solid #e5484d; }
+td.heat.evt-last::after  { border-bottom: 3px solid #e5484d; }
 
-/* 배지: 작게 떠있음 */
+/* 배지: 우상단 작은 핀 — 가운데 숫자를 가리지 않도록 코너에만 배치 */
 .evt-badge {
   position: absolute;
-  top: 1px;
-  left: 1px;
-  right: 1px;
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: #e5484d;
   color: #fff;
-  font-size: 9px;
-  line-height: 1.1;
-  padding: 1px 3px;
-  border-radius: 3px;
-  font-weight: 600;
+  font-size: 8px;
+  line-height: 1;
+  border-radius: 0 0 0 4px;
   cursor: help;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  z-index: 4;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  z-index: 5;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
 }
 .evt-badge:hover { background: #c5363a; }
 

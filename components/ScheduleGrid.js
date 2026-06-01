@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef } from "react";
 import { generateDates, generateSlots, slotKey, hourGroups } from "@/lib/schedule";
 import { formatDuration } from "./OverviewGrid";
+import { paletteEntry } from "@/lib/colorPalette";
 
-export default function ScheduleGrid({ config, person, editing = false, onCommitSlots, onMemoChange }) {
+export default function ScheduleGrid({ config, person, editing = false, onCommitSlots, onMemoChange, dateColors = {} }) {
   const dates = useMemo(() => generateDates(config.startDate, config.endDate), [config.startDate, config.endDate]);
   const slots = useMemo(
     () => generateSlots(config.startTime, config.endTime, config.slotMinutes || 30),
@@ -138,22 +139,25 @@ export default function ScheduleGrid({ config, person, editing = false, onCommit
     );
   }
 
-  // 강조 날짜 범위 — 6월 23~29일 통째로 옅은 붉은 테두리
-  function isInMarkedRange(dt) {
-    const md = String(dt.m).padStart(2, "0") + "-" + String(dt.d).padStart(2, "0");
-    return md >= "06-23" && md <= "06-29";
+  // 날짜별 강조색 (사용자 지정)
+  function getDateColor(dt) {
+    const key = dateColors && dateColors[dt.key];
+    return key && paletteEntry(key) ? key : null;
   }
-  const markedFirstC = dates.findIndex(isInMarkedRange);
-  const markedLastC = (() => {
-    for (let i = dates.length - 1; i >= 0; i--) if (isInMarkedRange(dates[i])) return i;
-    return -1;
-  })();
   function colClass(c, dt) {
-    if (!isInMarkedRange(dt)) return "";
+    const color = getDateColor(dt);
+    if (!color) return "";
     let s = " marked-col";
-    if (c === markedFirstC) s += " marked-col-first";
-    if (c === markedLastC) s += " marked-col-last";
+    const prev = c > 0 ? dates[c - 1] : null;
+    const next = c < dates.length - 1 ? dates[c + 1] : null;
+    if (!prev || getDateColor(prev) !== color) s += " marked-col-first";
+    if (!next || getDateColor(next) !== color) s += " marked-col-last";
     return s;
+  }
+  function markedHex(dt) {
+    const k = getDateColor(dt);
+    const e = k ? paletteEntry(k) : null;
+    return e ? e.hex : null;
   }
 
   // 가로/세로 보조선 — JS로 같은 행/열의 셀들과 시간 라벨/날짜 헤더에 hover-axis 클래스 부여
@@ -192,21 +196,27 @@ export default function ScheduleGrid({ config, person, editing = false, onCommit
         <thead>
           <tr>
             <th className="corner col-time">시간</th>
-            {dates.map((dt, c) => (
-              <th
-                key={dt.key}
-                className={"date-h" + (dt.dow === 6 ? " sat" : dt.dow === 0 ? " sun" : "") + colClass(c, dt)}
-                data-c={c}
-              >
-                {dt.label}
-                <span className="dow">({dt.dowLabel})</span>
-              </th>
-            ))}
+            {dates.map((dt, c) => {
+              const hex = markedHex(dt);
+              return (
+                <th
+                  key={dt.key}
+                  className={"date-h" + (dt.dow === 6 ? " sat" : dt.dow === 0 ? " sun" : "") + colClass(c, dt)}
+                  data-c={c}
+                  style={hex ? { "--marked-color": hex } : undefined}
+                >
+                  {dt.label}
+                  <span className="dow">({dt.dowLabel})</span>
+                </th>
+              );
+            })}
           </tr>
           <tr className="memo-row">
             <td className="time-label col-time">메모</td>
-            {dates.map((dt, c) => (
-              <td key={dt.key} className={colClass(c, dt).trim()}>
+            {dates.map((dt, c) => {
+              const hex = markedHex(dt);
+              return (
+              <td key={dt.key} className={colClass(c, dt).trim()} style={hex ? { "--marked-color": hex } : undefined}>
                 <textarea
                   className="memo-input"
                   rows={1}
@@ -217,7 +227,8 @@ export default function ScheduleGrid({ config, person, editing = false, onCommit
                   key={`${person.id}:${dt.key}:${editing ? "e" : "v"}`}
                 />
               </td>
-            ))}
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -233,6 +244,7 @@ export default function ScheduleGrid({ config, person, editing = false, onCommit
               )}
               {dates.map((dt, c) => {
                 const key = slotKey(dt.key, s.key);
+                const hex = markedHex(dt);
                 return (
                   <td
                     key={dt.key}
@@ -240,6 +252,7 @@ export default function ScheduleGrid({ config, person, editing = false, onCommit
                     data-key={key}
                     data-r={r}
                     data-c={c}
+                    style={hex ? { "--marked-color": hex } : undefined}
                     ref={(el) => {
                       const m = cellElsRef.current;
                       if (el) m.set(`${r}_${c}`, el);

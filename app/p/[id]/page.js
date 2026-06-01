@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/ui";
 import ScheduleGrid from "@/components/ScheduleGrid";
 import OverviewGrid from "@/components/OverviewGrid";
+import { generateDates } from "@/lib/schedule";
+import { COLOR_PALETTE, paletteEntry } from "@/lib/colorPalette";
 
 function formatRelative(ts) {
   if (!ts) return "—";
@@ -46,6 +48,7 @@ export default function ProjectPage({ params }) {
   const [authMode, setAuthMode] = useState("loading"); // 'loading' | 'pending' | 'owner' | 'guest'
   const [authError, setAuthError] = useState(null);
   const [shareModal, setShareModal] = useState(false);
+  const [colorModal, setColorModal] = useState(false); // 🎨 색 수정 모달
 
   // 권한: 프로젝트 로드 시 세션에서 권한 복원 또는 게이트
   useEffect(() => {
@@ -233,6 +236,18 @@ export default function ProjectPage({ params }) {
       revRef.current = p.rev || 0;
       setProject(p);
       toast("표를 다시 만들었습니다");
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  // ---- 날짜별 색 ----
+  async function saveDateColors(dateColors) {
+    try {
+      const p = await persist(api.patch(`/api/projects/${id}`, { dateColors }));
+      revRef.current = p.rev || 0;
+      setProject(p);
+      toast("날짜 색을 저장했습니다");
     } catch (e) {
       toast(e.message);
     }
@@ -679,8 +694,6 @@ export default function ProjectPage({ params }) {
         onDelete={isOwner ? deleteProject : null}
         onHome={() => router.push("/")}
         protectionOn={!!project.adminPassword || !!project.sharePassword}
-        onEventMode={isOwner ? () => setEventMode((v) => !v) : null}
-        eventModeOn={eventMode}
       />
 
       <div className="container">
@@ -944,6 +957,19 @@ export default function ProjectPage({ params }) {
                 🗂 {activeLoc ? activeLoc.name : "개인"} 전체 취합
               </span>
               <span className="hint">{activeLocPeople.length}명 · 일정을 자동으로 합쳐서 봅니다.</span>
+              {isOwner && (
+                <>
+                  <button
+                    type="button"
+                    className="btn small color-edit-btn"
+                    onClick={() => setColorModal(true)}
+                    title="날짜별 색을 지정합니다"
+                  >
+                    🎨 색 수정
+                  </button>
+                  <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
+                </>
+              )}
             </div>
             <OverviewGrid
               config={project.config}
@@ -953,6 +979,7 @@ export default function ProjectPage({ params }) {
               eventMode={eventMode && isOwner}
               onCreateEvent={createEvent}
               onDeleteEvent={removeEvent}
+              dateColors={project.dateColors || {}}
             />
           </>
         ) : isMultiTab ? (
@@ -985,6 +1012,9 @@ export default function ProjectPage({ params }) {
                   선택 해제
                 </button>
               )}
+              {isOwner && multiSel.size > 0 && (
+                <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
+              )}
             </div>
             {multiSel.size === 0 ? (
               <div className="empty-hint">위에서 한 명 이상 선택하면 그 사람들의 일정을 합쳐서 봅니다.</div>
@@ -993,6 +1023,11 @@ export default function ProjectPage({ params }) {
                 config={project.config}
                 people={activeLocPeople.filter((p) => multiSel.has(p.id))}
                 locationName={activeLoc ? activeLoc.name : "개인"}
+                events={project.events || []}
+                eventMode={eventMode && isOwner}
+                onCreateEvent={createEvent}
+                onDeleteEvent={removeEvent}
+                dateColors={project.dateColors || {}}
               />
             )}
           </>
@@ -1013,6 +1048,7 @@ export default function ProjectPage({ params }) {
                   <button className="btn danger small" onClick={() => removeTeam(activeTeam.id)}>
                     팀 삭제
                   </button>
+                  <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
                 </>
               )}
             </div>
@@ -1025,6 +1061,7 @@ export default function ProjectPage({ params }) {
               eventMode={eventMode && isOwner}
               onCreateEvent={createEvent}
               onDeleteEvent={removeEvent}
+              dateColors={project.dateColors || {}}
             />
           </>
         ) : activePerson ? (
@@ -1076,6 +1113,7 @@ export default function ProjectPage({ params }) {
               editing={editing}
               onCommitSlots={(slots) => commitSlots(activePerson.id, slots)}
               onMemoChange={(dateKey, value) => changeMemo(activePerson.id, dateKey, value)}
+              dateColors={project.dateColors || {}}
             />
           </>
         ) : null}
@@ -1134,6 +1172,13 @@ export default function ProjectPage({ params }) {
           projectUrl={typeof window !== "undefined" ? window.location.origin + window.location.pathname : ""}
           onSave={savePasswords}
           onClose={() => setShareModal(false)}
+        />
+      )}
+      {colorModal && (
+        <ColorEditModal
+          project={project}
+          onSave={(dc) => { saveDateColors(dc); setColorModal(false); }}
+          onClose={() => setColorModal(false)}
         />
       )}
       {dupModal && (
@@ -1218,6 +1263,7 @@ function CompareView({ project, compare, setCompare }) {
           people={people}
           locationName={loc?.name || "?"}
           events={project.events || []}
+          dateColors={project.dateColors || {}}
         />
       </div>
     );
@@ -1269,6 +1315,101 @@ function PasswordGate({ projectName, onAuth, error }) {
 }
 
 // 공유 설정 모달 — 비밀번호 보호 ON/OFF + 관리자/공유 비밀번호 + 링크 복사
+// 날짜별 색 수정 모달 — 팔레트에서 색을 고르고, 아래 날짜를 눌러 칠하기
+function ColorEditModal({ project, onSave, onClose }) {
+  const dates = useMemo(
+    () => generateDates(project.config.startDate, project.config.endDate),
+    [project.config.startDate, project.config.endDate]
+  );
+  const [local, setLocal] = useState(() => ({ ...(project.dateColors || {}) }));
+  const [activeColor, setActiveColor] = useState(COLOR_PALETTE[0].key);
+  const [eraser, setEraser] = useState(false);
+
+  function paintDate(dateKey) {
+    setLocal((cur) => {
+      const next = { ...cur };
+      if (eraser) {
+        delete next[dateKey];
+      } else if (next[dateKey] === activeColor) {
+        delete next[dateKey]; // 같은 색을 다시 누르면 해제
+      } else {
+        next[dateKey] = activeColor;
+      }
+      return next;
+    });
+  }
+  function clearAll() {
+    if (!Object.keys(local).length) return;
+    if (window.confirm("모든 날짜의 색 설정을 지울까요?")) setLocal({});
+  }
+
+  // 짧은 날짜 라벨 (예: "6/23(월)")
+  const fmtLabel = (dt) => `${dt.m}/${dt.d}(${dt.dowLabel})`;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal color-edit-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>🎨 날짜별 색 수정</h3>
+        <div className="color-palette-row">
+          <span className="color-palette-label">색 고르기</span>
+          {COLOR_PALETTE.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              className={"color-swatch" + (!eraser && activeColor === c.key ? " active" : "")}
+              style={{ background: c.hex }}
+              onClick={() => { setActiveColor(c.key); setEraser(false); }}
+              title={c.name}
+              aria-label={c.name}
+            />
+          ))}
+          <button
+            type="button"
+            className={"color-swatch color-swatch-eraser" + (eraser ? " active" : "")}
+            onClick={() => setEraser(true)}
+            title="지우기"
+            aria-label="지우기"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="modal-sub">
+          위에서 색을 고르고 아래 날짜를 눌러 칠하세요. 같은 색을 다시 누르면 해제됩니다.
+          {eraser && <span className="hint" style={{ marginLeft: 6, color: "#c5363a" }}>· 지우기 모드</span>}
+        </div>
+        <div className="color-date-grid">
+          {dates.map((dt) => {
+            const cur = local[dt.key];
+            const entry = cur ? paletteEntry(cur) : null;
+            return (
+              <button
+                key={dt.key}
+                type="button"
+                className={
+                  "color-date-cell" +
+                  (entry ? " on" : "") +
+                  (dt.dow === 6 ? " sat" : dt.dow === 0 ? " sun" : "")
+                }
+                style={entry ? { background: entry.hex, borderColor: entry.accent, color: "#fff" } : undefined}
+                onClick={() => paintDate(dt.key)}
+                title={cur ? `${dt.label}(${dt.dowLabel}) — ${paletteEntry(cur)?.name}` : `${dt.label}(${dt.dowLabel})`}
+              >
+                {fmtLabel(dt)}
+              </button>
+            );
+          })}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn small" onClick={clearAll} disabled={!Object.keys(local).length}>전체 지우기</button>
+          <span style={{ flex: 1 }} />
+          <button type="button" className="btn" onClick={onClose}>취소</button>
+          <button type="button" className="btn primary" onClick={() => onSave(local)}>저장</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ShareModal({ project, projectUrl, onSave, onClose }) {
   const [protectionOn, setProtectionOn] = useState(!!(project.adminPassword || project.sharePassword));
   const [admin, setAdmin] = useState(project.adminPassword || "");
@@ -1364,7 +1505,7 @@ function ShareModal({ project, projectUrl, onSave, onClose }) {
 }
 
 // 팀 뷰: 멤버 칩으로 토글하여 일부만 포함한 일정을 즉시 볼 수 있음
-function TeamScheduleView({ team, config, people, locationName, events, eventMode, onCreateEvent, onDeleteEvent }) {
+function TeamScheduleView({ team, config, people, locationName, events, eventMode, onCreateEvent, onDeleteEvent, dateColors }) {
   const [hidden, setHidden] = useState(() => new Set());
   // 팀이 바뀌면 토글 상태 초기화
   useEffect(() => { setHidden(new Set()); }, [team.id]);
@@ -1419,6 +1560,7 @@ function TeamScheduleView({ team, config, people, locationName, events, eventMod
           eventMode={eventMode}
           onCreateEvent={onCreateEvent}
           onDeleteEvent={onDeleteEvent}
+          dateColors={dateColors}
         />
       )}
     </>
@@ -1504,22 +1646,27 @@ function TeamModal({ projectPeople, locationLabel, initial, onSave, onClose }) {
   );
 }
 
-function Topbar({ onShare, onShareSettings, onDelete, onHome, protectionOn, onEventMode, eventModeOn }) {
+// 표 바로 위에 두는 '일정 잡기' 토글 버튼 — 켜져 있을 땐 강조
+function EventModeButton({ on, onToggle }) {
+  return (
+    <button
+      type="button"
+      className={"btn small event-mode-btn" + (on ? " on" : "")}
+      onClick={onToggle}
+      title="셀을 드래그해 약속 시간을 잡습니다"
+    >
+      {on ? "✓ 일정 잡기 완료" : "📅 일정 잡기"}
+    </button>
+  );
+}
+
+function Topbar({ onShare, onShareSettings, onDelete, onHome, protectionOn }) {
   return (
     <div className="topbar">
       <span className="brand" style={{ cursor: onHome ? "pointer" : "default" }} onClick={onHome || undefined}>
         📅 일정 취합
       </span>
       <span className="spacer" />
-      {onEventMode && (
-        <button
-          className={"btn small" + (eventModeOn ? " primary" : "")}
-          onClick={onEventMode}
-          title="셀을 드래그해 약속을 잡습니다"
-        >
-          {eventModeOn ? "✓ 일정 잡기 완료" : "📅 일정 잡기"}
-        </button>
-      )}
       {onShareSettings && (
         <button className="btn small" onClick={onShareSettings} title="공유 비밀번호 설정">
           {protectionOn ? "🔒 공유 설정" : "🔓 공유 설정"}

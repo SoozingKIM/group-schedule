@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { generateDates, generateSlots, slotKey, hourGroups } from "@/lib/schedule";
+import { paletteEntry, paletteRgba, DEFAULT_PALETTE_KEY } from "@/lib/colorPalette";
 
 export function formatDuration(totalMin) {
   if (!totalMin) return "0분";
@@ -20,7 +21,7 @@ function slotEndTime(s) {
   return `${pad2(Math.floor(m / 60) % 24)}:${pad2(m % 60)}`;
 }
 
-export default function OverviewGrid({ config, people, locationName, events = [], eventMode = false, onCreateEvent, onDeleteEvent }) {
+export default function OverviewGrid({ config, people, locationName, events = [], eventMode = false, onCreateEvent, onDeleteEvent, dateColors = {} }) {
   const dates = useMemo(() => generateDates(config.startDate, config.endDate), [config.startDate, config.endDate]);
   const slots = useMemo(
     () => generateSlots(config.startTime, config.endTime, config.slotMinutes || 30),
@@ -163,33 +164,35 @@ export default function OverviewGrid({ config, people, locationName, events = []
     return <div className="empty-hint">아직 참여자가 없습니다. 사람을 추가해 일정을 입력해 보세요.</div>;
   }
 
-  function bg(count, marked) {
+  // 날짜별 색 강조: 해당 날짜에 지정된 팔레트 키(red/orange/...) 또는 null
+  function getDateColor(dt) {
+    const key = dateColors && dateColors[dt.key];
+    return key && paletteEntry(key) ? key : null;
+  }
+  function bg(count, colorKey) {
     if (count === 0) return "#fff";
     const alpha = 0.18 + (count / total) * 0.82;
-    // 강조 주간(예: 6/23~29)은 붉은 계열로
-    if (marked) return `rgba(229, 72, 77, ${alpha.toFixed(3)})`;
-    return `rgba(79, 110, 247, ${alpha.toFixed(3)})`;
+    const key = colorKey || DEFAULT_PALETTE_KEY;
+    return paletteRgba(key, alpha) || paletteRgba(DEFAULT_PALETTE_KEY, alpha);
   }
   function fg(count) {
     return count / total > 0.55 ? "#fff" : "#1f2330";
   }
-
-  // 강조 날짜 범위 — 6월 23~29일 통째로 옅은 붉은 테두리
-  function isInMarkedRange(dt) {
-    const md = String(dt.m).padStart(2, "0") + "-" + String(dt.d).padStart(2, "0");
-    return md >= "06-23" && md <= "06-29";
-  }
-  const markedFirstC = dates.findIndex(isInMarkedRange);
-  const markedLastC = (() => {
-    for (let i = dates.length - 1; i >= 0; i--) if (isInMarkedRange(dates[i])) return i;
-    return -1;
-  })();
+  // 인접 셀과 색이 다른 경계에서 좌/우 테두리를 그림
   function colClass(c, dt) {
-    if (!isInMarkedRange(dt)) return "";
+    const color = getDateColor(dt);
+    if (!color) return "";
     let s = " marked-col";
-    if (c === markedFirstC) s += " marked-col-first";
-    if (c === markedLastC) s += " marked-col-last";
+    const prev = c > 0 ? dates[c - 1] : null;
+    const next = c < dates.length - 1 ? dates[c + 1] : null;
+    if (!prev || getDateColor(prev) !== color) s += " marked-col-first";
+    if (!next || getDateColor(next) !== color) s += " marked-col-last";
     return s;
+  }
+  function markedHex(dt) {
+    const k = getDateColor(dt);
+    const e = k ? paletteEntry(k) : null;
+    return e ? e.hex : null;
   }
 
   // 가로/세로 보조선 — JS로 같은 행/열에 hover-axis 클래스 부여
@@ -281,16 +284,20 @@ export default function OverviewGrid({ config, people, locationName, events = []
           <thead>
             <tr>
               <th className="corner col-time">시간</th>
-              {dates.map((dt, cIdx) => (
-                <th
-                  key={dt.key}
-                  className={"date-h" + (dt.dow === 6 ? " sat" : dt.dow === 0 ? " sun" : "") + colClass(cIdx, dt)}
-                  data-c={cIdx}
-                >
-                  {dt.label}
-                  <span className="dow">({dt.dowLabel})</span>
-                </th>
-              ))}
+              {dates.map((dt, cIdx) => {
+                const hex = markedHex(dt);
+                return (
+                  <th
+                    key={dt.key}
+                    className={"date-h" + (dt.dow === 6 ? " sat" : dt.dow === 0 ? " sun" : "") + colClass(cIdx, dt)}
+                    data-c={cIdx}
+                    style={hex ? { "--marked-color": hex } : undefined}
+                  >
+                    {dt.label}
+                    <span className="dow">({dt.dowLabel})</span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -310,15 +317,30 @@ export default function OverviewGrid({ config, people, locationName, events = []
                     const c = names.length;
                     const isActive = active && active.key === k;
                     const isFull = total > 0 && c === total;
-                    const isMarked = isInMarkedRange(dt);
+                    const colorKey = getDateColor(dt);
+                    const hex = markedHex(dt);
                     const evList = eventCells.get(`${dt.key}:${r}`) || [];
                     const hasEvt = evList.length > 0;
                     const firstEvts = evList.filter((x) => x.isFirst);
                     const isEvtFirst = firstEvts.length > 0;
                     const isEvtLast = evList.some((x) => x.isLast);
-                    const drag = isInDrag(cIdx, r);
-                    const dragLo = eventDrag && Math.min(eventDrag.startR, eventDrag.endR);
-                    const dragHi = eventDrag && Math.max(eventDrag.startR, eventDrag.endR);
+                    // 드래그 중이거나, 드래그 끝나고 입력 팝업이 떠 있는 동안에도 선택 영역 강조
+                    const inDrag = isInDrag(cIdx, r);
+                    const inInput = !!(
+                      eventInput &&
+                      eventInput.date === dt.key &&
+                      r >= eventInput.startR &&
+                      r <= eventInput.endR
+                    );
+                    const drag = inDrag || inInput;
+                    let dragLo = null, dragHi = null;
+                    if (inDrag) {
+                      dragLo = Math.min(eventDrag.startR, eventDrag.endR);
+                      dragHi = Math.max(eventDrag.startR, eventDrag.endR);
+                    } else if (inInput) {
+                      dragLo = eventInput.startR;
+                      dragHi = eventInput.endR;
+                    }
                     return (
                       <td
                         key={dt.key}
@@ -337,7 +359,9 @@ export default function OverviewGrid({ config, people, locationName, events = []
                         }
                         data-c={cIdx}
                         data-r={r}
-                        style={{ background: bg(c, isMarked), color: fg(c) }}
+                        style={hex
+                          ? { background: bg(c, colorKey), color: fg(c), "--marked-color": hex }
+                          : { background: bg(c, colorKey), color: fg(c) }}
                         onMouseEnter={(e) => onCellEnter(e, dt, s, k)}
                         onMouseMove={onCellMove}
                         onMouseLeave={onCellLeave}
@@ -360,8 +384,9 @@ export default function OverviewGrid({ config, people, locationName, events = []
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
                             title={event.title}
+                            aria-label={event.title}
                           >
-                            📌 {event.title}
+                            📌
                           </span>
                         ))}
                       </td>
