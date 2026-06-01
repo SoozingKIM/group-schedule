@@ -52,18 +52,26 @@ export default function ProjectPage({ params }) {
   const [view, setView] = useState("schedule");
   const [eventEditing, setEventEditing] = useState(null); // 수정 중인 일정 객체
 
-  // 권한: 프로젝트 로드 시 세션에서 권한 복원 또는 게이트
+  // 권한 흐름:
+  //   · 관리자 비밀번호가 없으면 → 누구든 owner (보호 해제 상태)
+  //   · 있으면 → 기본은 guest(=조회 전용), URL 해시 #<adminHash>가 있을 때만 관리자 비밀번호 게이트
+  //   · 세션에 이전 인증된 흔적이 있으면 복원
   useEffect(() => {
     if (!project) return;
-    if (!project.adminPassword && !project.sharePassword) {
+    if (!project.adminPassword) {
       setAuthMode("owner");
       return;
     }
     if (typeof window === "undefined") return;
     const stored = window.sessionStorage.getItem(`auth_${project.id}`);
-    if (stored === "owner" || stored === "guest") setAuthMode(stored);
-    else setAuthMode("pending");
-  }, [project?.id, project?.adminPassword, project?.sharePassword]);
+    if (stored === "owner") { setAuthMode("owner"); return; }
+    const wanted = "#" + (project.adminHash || "admin");
+    if (window.location.hash === wanted) {
+      setAuthMode("pending");
+      return;
+    }
+    setAuthMode("guest");
+  }, [project?.id, project?.adminPassword, project?.adminHash]);
 
   function tryAuth(pw) {
     if (!project) return;
@@ -71,13 +79,23 @@ export default function ProjectPage({ params }) {
       setAuthMode("owner");
       window.sessionStorage.setItem(`auth_${project.id}`, "owner");
       setAuthError(null);
-    } else if (project.sharePassword && pw === project.sharePassword) {
-      setAuthMode("guest");
-      window.sessionStorage.setItem(`auth_${project.id}`, "guest");
-      setAuthError(null);
+      // URL 해시 흔적 제거 (북마크해두면 다음 접속 시에도 게이트가 다시 뜸)
+      if (typeof window !== "undefined" && window.location.hash) {
+        try { history.replaceState(null, "", window.location.pathname); } catch {}
+      }
     } else {
       setAuthError("비밀번호가 맞지 않습니다.");
     }
+  }
+  // 게스트가 관리자 모드로 진입하길 원할 때 호출
+  function requestAdmin() {
+    if (!project) return;
+    if (!project.adminPassword) {
+      setAuthMode("owner");
+      return;
+    }
+    setAuthMode("pending");
+    setAuthError(null);
   }
   const isOwner = authMode === "owner";
   const isGuest = authMode === "guest";
@@ -732,14 +750,6 @@ export default function ProjectPage({ params }) {
               ? `✓ 변경 시 자동 저장됨 · 마지막 저장 ${lastSaved.toLocaleTimeString("ko-KR")}`
               : "✓ 모든 변경은 자동 저장됩니다"}
           </span>
-          <button
-            type="button"
-            className={"view-switch-btn" + (view === "calendar" ? " active" : "")}
-            onClick={() => setView(view === "calendar" ? "schedule" : "calendar")}
-            title="잡힌 일정을 달력으로 봅니다"
-          >
-            {view === "calendar" ? "← 일정 표로 돌아가기" : `🗓 전체 일정 보기${(project.events || []).length ? ` (${project.events.length})` : ""}`}
-          </button>
         </div>
 
         {view === "calendar" ? (
@@ -750,6 +760,7 @@ export default function ProjectPage({ params }) {
             canDelete={isOwner}
             onDeleteEvent={removeEvent}
             onEditEvent={isOwner ? (ev) => setEventEditing(ev) : null}
+            onBack={() => setView("schedule")}
           />
         ) : (
         <>
@@ -1003,6 +1014,7 @@ export default function ProjectPage({ params }) {
                     🎨 색 수정
                   </button>
                   <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
+                  <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
                 </>
               )}
             </div>
@@ -1049,7 +1061,13 @@ export default function ProjectPage({ params }) {
                 </button>
               )}
               {isOwner && multiSel.size > 0 && (
-                <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
+                <>
+                  <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
+                  <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
+                </>
+              )}
+              {isOwner && multiSel.size === 0 && (
+                <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
               )}
             </div>
             {multiSel.size === 0 ? (
@@ -1086,6 +1104,7 @@ export default function ProjectPage({ params }) {
                     팀 삭제
                   </button>
                   <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
+                  <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
                 </>
               )}
             </div>
@@ -1446,7 +1465,7 @@ function EventEditModal({ event, onSave, onDelete, onClose }) {
 }
 
 // 전체 일정 달력 — 메인 화면을 통째로 차지하는 풀스크린 뷰
-function EventCalendarPage({ events, config, dateColors, canDelete, onDeleteEvent, onEditEvent }) {
+function EventCalendarPage({ events, config, dateColors, canDelete, onDeleteEvent, onEditEvent, onBack }) {
   // 날짜별 일정 묶음 + startTime 기준 정렬
   const byDate = useMemo(() => {
     const m = new Map();
@@ -1495,6 +1514,11 @@ function EventCalendarPage({ events, config, dateColors, canDelete, onDeleteEven
   return (
     <div className="event-cal-page">
       <div className="event-cal-head">
+        {onBack && (
+          <button type="button" className="btn small" onClick={onBack} title="일정 표로 돌아갑니다">
+            ← 일정 표로
+          </button>
+        )}
         <h3 style={{ margin: 0 }}>🗓 전체 일정{events.length > 0 ? ` (${events.length}개)` : ""}</h3>
         <span style={{ flex: 1 }} />
         {onEditEvent && <span className="hint">💡 일정을 클릭하면 수정할 수 있어요</span>}
@@ -1686,28 +1710,38 @@ function ColorEditModal({ project, onSave, onClose }) {
 }
 
 function ShareModal({ project, projectUrl, onSave, onClose }) {
-  const [protectionOn, setProtectionOn] = useState(!!(project.adminPassword || project.sharePassword));
+  const [protectionOn, setProtectionOn] = useState(!!project.adminPassword);
   const [admin, setAdmin] = useState(project.adminPassword || "");
-  const [share, setShare] = useState(project.sharePassword || "");
+  const [hashWord, setHashWord] = useState(project.adminHash || "admin");
+  // 입력값 정제 — 영문/숫자/대시/언더스코어만 허용 (URL 안전)
+  function onHashChange(v) {
+    const cleaned = (v || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    setHashWord(cleaned);
+  }
+  const effectiveHash = hashWord.trim() || "admin";
+  const adminUrl = `${projectUrl}#${effectiveHash}`;
   function copy(text, msg) {
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => toast(msg));
     else window.prompt("아래를 복사하세요", text);
   }
   function handleSave() {
     if (protectionOn) {
-      if (!admin.trim() && !share.trim()) {
-        toast("비밀번호를 입력하거나 보호를 끄세요.");
+      if (!admin.trim()) {
+        toast("관리자 비밀번호를 입력하거나 보호를 끄세요.");
         return;
       }
-      onSave({ adminPassword: admin.trim(), sharePassword: share.trim() });
+      onSave({
+        adminPassword: admin.trim(),
+        sharePassword: "",
+        adminHash: effectiveHash,
+      });
     } else {
-      // 보호 OFF — 비밀번호 모두 해제
       onSave({ adminPassword: "", sharePassword: "" });
     }
   }
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: 460 }}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: 480 }}>
         <h3>🔗 공유 설정</h3>
 
         <label className="protection-toggle">
@@ -1717,58 +1751,66 @@ function ShareModal({ project, projectUrl, onSave, onClose }) {
             onChange={(e) => setProtectionOn(e.target.checked)}
           />
           <span className="protection-toggle-label">
-            <strong>비밀번호로 보호하기</strong>
+            <strong>관리자 비밀번호로 보호하기</strong>
             <small>
               {protectionOn
-                ? "비밀번호를 모르면 들어올 수 없음 — 친구들에게 공유 비번 전달 필요"
-                : "누구나 링크만 알면 자유롭게 들어와 편집할 수 있음"}
+                ? "방문자는 비밀번호 없이 조회 전용으로 들어옴 · 관리자 진입은 #admin 링크 + 비밀번호 필요"
+                : "누구나 링크만 알면 자유롭게 들어와 편집할 수 있음 (관리자 구분 없음)"}
             </small>
           </span>
         </label>
 
-        {protectionOn ? (
-          <>
-            <div className="modal-sub" style={{ marginTop: 12 }}>
-              관리자 비밀번호로 들어오면 전체 편집 가능, 공유 비밀번호로는 사람 일정만 수정 가능합니다.
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
-              <label className="field" style={{ flexDirection: "column", alignItems: "stretch" }}>
-                <span style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>관리자 비밀번호 (본인만)</span>
-                <input
-                  className="modal-input"
-                  type="text"
-                  value={admin}
-                  onChange={(e) => setAdmin(e.target.value)}
-                  placeholder="예: myAdmin123"
-                />
-              </label>
-              <label className="field" style={{ flexDirection: "column", alignItems: "stretch" }}>
-                <span style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>공유 비밀번호 (참여자들에게 알려줄)</span>
-                <input
-                  className="modal-input"
-                  type="text"
-                  value={share}
-                  onChange={(e) => setShare(e.target.value)}
-                  placeholder="예: team2026"
-                />
-              </label>
-            </div>
-          </>
-        ) : null}
+        {protectionOn && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+            <label className="field" style={{ flexDirection: "column", alignItems: "stretch" }}>
+              <span style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>관리자 비밀번호 (본인만)</span>
+              <input
+                className="modal-input"
+                type="text"
+                value={admin}
+                onChange={(e) => setAdmin(e.target.value)}
+                placeholder="예: myAdmin123"
+              />
+            </label>
+            <label className="field" style={{ flexDirection: "column", alignItems: "stretch" }}>
+              <span style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>
+                관리자 진입 비밀단어 <small style={{ color: "var(--muted)" }}>· URL 뒤 #<strong>{effectiveHash}</strong> 로 진입</small>
+              </span>
+              <input
+                className="modal-input"
+                type="text"
+                value={hashWord}
+                onChange={(e) => onHashChange(e.target.value)}
+                placeholder="예: secret-2026 (영문·숫자·-·_ 만)"
+                spellCheck={false}
+                autoComplete="off"
+              />
+              <small style={{ color: "var(--muted)", marginTop: 2 }}>
+                기본값 'admin'은 누구나 추측 가능 — 본인만 아는 단어로 바꿔두면 좋아요.
+              </small>
+            </label>
+          </div>
+        )}
 
         <div style={{ marginTop: 14, padding: 10, background: "#f5f7fb", borderRadius: 8, fontSize: 13 }}>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>참여자에게 전달할 정보</div>
-          <div style={{ marginBottom: protectionOn && share ? 6 : 0, display: "flex", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>📤 참여자용 (조회·편집 가능)</div>
+          <div style={{ marginBottom: 4, display: "flex", justifyContent: "space-between", gap: 8 }}>
             <code style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{projectUrl}</code>
-            <button className="btn small" onClick={() => copy(projectUrl, "주소를 복사했습니다")}>주소 복사</button>
+            <button className="btn small" onClick={() => copy(projectUrl, "주소를 복사했습니다")}>복사</button>
           </div>
-          {protectionOn && share && (
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-              <code style={{ flex: 1 }}>비밀번호: {share}</code>
-              <button className="btn small" onClick={() => copy(share, "비밀번호를 복사했습니다")}>비밀번호 복사</button>
-            </div>
-          )}
+          <small style={{ color: "var(--muted)" }}>비밀번호 없이 바로 일정 입력 가능</small>
         </div>
+
+        {protectionOn && (
+          <div style={{ marginTop: 10, padding: 10, background: "#fff4f0", borderRadius: 8, fontSize: 13, border: "1px solid #f7d4c4" }}>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>🔐 관리자용 (본인 책갈피)</div>
+            <div style={{ marginBottom: 4, display: "flex", justifyContent: "space-between", gap: 8 }}>
+              <code style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{adminUrl}</code>
+              <button className="btn small" onClick={() => copy(adminUrl, "관리자 링크를 복사했습니다")}>복사</button>
+            </div>
+            <small style={{ color: "var(--muted)" }}>이 링크로 들어와 관리자 비밀번호 입력하면 전체 편집 가능 · 절대 공유하지 마세요</small>
+          </div>
+        )}
 
         <div className="modal-actions">
           <button className="btn" onClick={onClose}>취소</button>
@@ -1923,6 +1965,20 @@ function TeamModal({ projectPeople, locationLabel, initial, onSave, onClose }) {
 }
 
 // 표 바로 위에 두는 '일정 잡기' 토글 버튼 — 켜져 있을 땐 강조
+// '🗓 전체 일정' 버튼 — 일정 잡기 버튼 옆에 두는 진입점
+function CalendarButton({ onClick, count = 0 }) {
+  return (
+    <button
+      type="button"
+      className="btn small calendar-btn"
+      onClick={onClick}
+      title="잡힌 일정을 달력으로 봅니다"
+    >
+      🗓 전체 일정{count > 0 ? ` (${count})` : ""}
+    </button>
+  );
+}
+
 function EventModeButton({ on, onToggle }) {
   return (
     <button
