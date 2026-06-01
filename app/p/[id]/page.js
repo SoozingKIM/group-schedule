@@ -41,7 +41,6 @@ export default function ProjectPage({ params }) {
   const [dragOver, setDragOver] = useState(null); // { kind, id }
   const [compare, setCompare] = useState(null); // null | { left: locId, right: locId }
   const [dupModal, setDupModal] = useState(null); // null | { name, locationId, existingLocations, suggestedName }
-  const [locSubTabs, setLocSubTabs] = useState({}); // { locId: lastActiveTabInThatLocation } — 위치 전환 시 복원용
   const subTabsLoadedRef = useRef(false); // sessionStorage 1회만 로드
   const [notesEditing, setNotesEditing] = useState(false); // 비었을 때 오너가 '메모 쓰기' 누르면 패널 펼침
   const [eventMode, setEventMode] = useState(false); // '일정 잡기' 모드 켰을 때 셀 드래그로 약속 생성
@@ -89,16 +88,13 @@ export default function ProjectPage({ params }) {
     setMultiSel(new Set());
   }, [activeTab]);
 
-  // 1) sessionStorage에서 이전 세션의 위치별 마지막 탭 복원 (프로젝트 로드 직후, 1회만)
+  // 1) sessionStorage에서 이전 세션의 activeTab 복원 (프로젝트 로드 직후, 1회만)
   useEffect(() => {
     if (!project || subTabsLoadedRef.current) return;
     if (typeof window !== "undefined") {
       try {
-        const stored = window.sessionStorage.getItem(`subTabs_${project.id}`);
-        if (stored) setLocSubTabs(JSON.parse(stored));
         const storedTab = window.sessionStorage.getItem(`activeTab_${project.id}`);
         if (storedTab) {
-          // 복원 가능 여부 검증
           const ok =
             storedTab.startsWith("overview:") ||
             storedTab.startsWith("multi:") ||
@@ -111,47 +107,53 @@ export default function ProjectPage({ params }) {
     subTabsLoadedRef.current = true;
   }, [project?.id]);
 
-  // 2) activeTab이 바뀔 때마다 "이 위치에서 마지막으로 본 하위 탭"을 저장 — 위치 전환 후 복원에 사용
-  useEffect(() => {
-    if (!project || !activeTab) return;
-    let locKey = null;
-    if (activeTab.startsWith("overview:")) locKey = activeTab.slice("overview:".length);
-    else if (activeTab.startsWith("multi:")) locKey = activeTab.slice("multi:".length);
-    else {
-      const team = (project.teams || []).find((t) => t.id === activeTab);
-      if (team) locKey = team.locationId || "";
-      else {
-        const person = project.people.find((p) => p.id === activeTab);
-        if (person) locKey = person.locationId || "";
-      }
-    }
-    if (locKey !== null) {
-      setLocSubTabs((prev) => (prev[locKey] === activeTab ? prev : { ...prev, [locKey]: activeTab }));
-    }
-  }, [activeTab, project?.id]);
-
-  // 3) locSubTabs와 activeTab을 sessionStorage에 저장 (새로고침해도 유지)
+  // 2) activeTab을 sessionStorage에 저장 (새로고침해도 유지)
   useEffect(() => {
     if (!project || typeof window === "undefined" || !subTabsLoadedRef.current) return;
     try {
-      window.sessionStorage.setItem(`subTabs_${project.id}`, JSON.stringify(locSubTabs));
       window.sessionStorage.setItem(`activeTab_${project.id}`, activeTab);
     } catch {}
-  }, [locSubTabs, activeTab, project?.id]);
+  }, [activeTab, project?.id]);
 
-  // 위치 탭 클릭 시 호출 — 저장된 하위 탭이 있으면 거기로, 없으면 그 위치의 전체취합으로
+  // 위치 탭 클릭 시 호출 — 현재 보고 있는 뷰의 종류(전체취합/여러명/팀/사람)를 새 위치에서도 유지.
+  //   · 새 위치에 같은 이름의 팀/사람이 있으면 그것을 우선 선택
+  //   · 없으면 그 위치의 첫 번째 팀/사람으로 폴백
+  //   · 종류 자체가 새 위치에 없으면(예: 사람 모드인데 새 위치에 사람 없음) 전체취합으로 폴백
   function gotoLocation(locId) {
     const key = locId || "";
-    const saved = locSubTabs[key];
-    if (saved && project) {
-      if (saved.startsWith("overview:") || saved.startsWith("multi:")) {
-        setActiveTab(saved);
+    if (!project) return;
+
+    let kind = "overview"; // 'overview' | 'multi' | 'person' | 'team'
+    let curName = null;
+    if (activeTab.startsWith("multi:")) {
+      kind = "multi";
+    } else if (activeTab.startsWith("overview:")) {
+      kind = "overview";
+    } else {
+      const team = (project.teams || []).find((t) => t.id === activeTab);
+      if (team) { kind = "team"; curName = team.name; }
+      else {
+        const person = project.people.find((p) => p.id === activeTab);
+        if (person) { kind = "person"; curName = person.name; }
+      }
+    }
+
+    if (kind === "multi") { setActiveTab(`multi:${key}`); return; }
+    if (kind === "team") {
+      const teamsHere = (project.teams || []).filter((t) => (t.locationId || "") === key);
+      if (teamsHere.length > 0) {
+        const same = teamsHere.find((t) => t.name === curName);
+        setActiveTab((same || teamsHere[0]).id);
         return;
       }
-      const team = (project.teams || []).find((t) => t.id === saved);
-      if (team && (team.locationId || "") === key) { setActiveTab(saved); return; }
-      const person = project.people.find((p) => p.id === saved);
-      if (person && (person.locationId || "") === key) { setActiveTab(saved); return; }
+    }
+    if (kind === "person") {
+      const peopleHere = project.people.filter((p) => (p.locationId || "") === key);
+      if (peopleHere.length > 0) {
+        const same = peopleHere.find((p) => p.name === curName);
+        setActiveTab((same || peopleHere[0]).id);
+        return;
+      }
     }
     setActiveTab(`overview:${key}`);
   }
