@@ -2118,16 +2118,19 @@ function TeamModal({ projectPeople, locationLabel, initial, onSave, onClose }) {
 }
 
 // 표 바로 위에 두는 '일정 잡기' 토글 버튼 — 켜져 있을 땐 강조
-// '🗓 전체 일정' 버튼 — 일정 잡기 버튼 옆에 두는 진입점
+// '🗓 전체 일정 보기' 버튼 — 위치 탭 아래 전용 행의 큼직한 CTA
 function CalendarButton({ onClick, count = 0 }) {
   return (
     <button
       type="button"
-      className="btn small calendar-btn"
+      className="calendar-btn-big"
       onClick={onClick}
       title="잡힌 일정을 달력으로 봅니다"
     >
-      🗓 전체 일정{count > 0 ? ` (${count})` : ""}
+      <span className="calendar-btn-icon">🗓</span>
+      <span className="calendar-btn-label">전체 일정 보기</span>
+      {count > 0 && <span className="calendar-btn-count">{count}</span>}
+      <span className="calendar-btn-arrow">→</span>
     </button>
   );
 }
