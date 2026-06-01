@@ -639,7 +639,8 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
   border: 1px solid #e1e4eb;
   border-radius: 10px;
   padding: 16px 18px;
-  margin: 12px 0;
+  /* 컨테이너(max-width:1100px)에서 양옆으로 살짝 더 펴기 — 최대 +200px씩, 총 ~1500px까지 */
+  margin: 12px clamp(-200px, calc(530px - 50vw), 0px);
 }
 .event-cal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .event-cal-months { display: flex; flex-direction: column; gap: 18px; }
@@ -779,6 +780,90 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
 }
 .evt-edit-row input:focus, .evt-edit-row textarea:focus { outline: none; border-color: #4f6ef7; }
 .evt-edit-row textarea { resize: vertical; min-height: 56px; }
+
+/* 📋 활동 내역 모달 */
+.activity-log-modal { width: 620px; max-width: 96vw; max-height: 86vh; overflow-y: auto; }
+.activity-filter-row {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0 12px;
+  flex-wrap: wrap;
+}
+.activity-filter-chip {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  border: 1px solid #d8dce4;
+  background: #fff;
+  color: #4a5063;
+  cursor: pointer;
+  font-weight: 500;
+}
+.activity-filter-chip:hover { background: #f0f2f6; }
+.activity-filter-chip.on {
+  background: #4f6ef7;
+  color: #fff;
+  border-color: #4f6ef7;
+}
+.activity-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 64vh;
+  overflow-y: auto;
+  border: 1px solid #eaedf2;
+  border-radius: 6px;
+  background: #fcfcfd;
+  padding: 6px;
+}
+.activity-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #eef1f5;
+  border-radius: 5px;
+  font-size: 13px;
+}
+.activity-icon {
+  font-size: 15px;
+  line-height: 1.4;
+  flex-shrink: 0;
+  width: 22px;
+  text-align: center;
+}
+.activity-body { flex: 1; min-width: 0; }
+.activity-summary {
+  color: #1f2330;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+.activity-time {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+/* 게스트(공유 모드) 안내 — 상단 바에 작게 표시 */
+.topbar-guest-hint {
+  margin-left: 12px;
+  padding: 3px 9px;
+  background: #eef2ff;
+  border: 1px solid #c8d2fb;
+  color: #3a59e8;
+  font-size: 12px;
+  border-radius: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .topbar-guest-hint { font-size: 10.5px; padding: 2px 7px; }
+}
 
 /* '🗓 전체 일정' 버튼 — 일정 잡기 옆에 두는 작은 버튼 */
 .calendar-btn {

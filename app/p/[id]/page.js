@@ -51,6 +51,7 @@ export default function ProjectPage({ params }) {
   // 'schedule' = 기본 표 화면 / 'calendar' = 전체 일정 달력 (전체 영역 차지)
   const [view, setView] = useState("schedule");
   const [eventEditing, setEventEditing] = useState(null); // 수정 중인 일정 객체
+  const [activityModal, setActivityModal] = useState(false);
 
   // 권한 흐름:
   //   · 관리자 비밀번호가 없으면 → 누구든 owner (보호 해제 상태)
@@ -728,6 +729,9 @@ export default function ProjectPage({ params }) {
         onDelete={isOwner ? deleteProject : null}
         onHome={() => router.push("/")}
         protectionOn={!!project.adminPassword || !!project.sharePassword}
+        guestHint={isGuest}
+        onShowActivity={isOwner ? () => setActivityModal(true) : null}
+        activityCount={isOwner ? (project.activities || []).length : 0}
       />
 
       <div className="container">
@@ -770,28 +774,23 @@ export default function ProjectPage({ params }) {
           <div className="config-grid">
             <div className="field">
               <label>시작일</label>
-              <input type="date" value={cfg.startDate} disabled={isGuest} onChange={(e) => setCfg({ ...cfg, startDate: e.target.value })} />
+              <input type="date" value={cfg.startDate} onChange={(e) => setCfg({ ...cfg, startDate: e.target.value })} />
             </div>
             <div className="field">
               <label>종료일</label>
-              <input type="date" value={cfg.endDate} disabled={isGuest} onChange={(e) => setCfg({ ...cfg, endDate: e.target.value })} />
+              <input type="date" value={cfg.endDate} onChange={(e) => setCfg({ ...cfg, endDate: e.target.value })} />
             </div>
             <div className="field">
               <label>시작시간</label>
-              <input type="time" step="1800" value={cfg.startTime} disabled={isGuest} onChange={(e) => setCfg({ ...cfg, startTime: e.target.value })} />
+              <input type="time" step="1800" value={cfg.startTime} onChange={(e) => setCfg({ ...cfg, startTime: e.target.value })} />
             </div>
             <div className="field">
               <label>종료시간</label>
-              <input type="time" step="1800" value={cfg.endTime} disabled={isGuest} onChange={(e) => setCfg({ ...cfg, endTime: e.target.value })} />
+              <input type="time" step="1800" value={cfg.endTime} onChange={(e) => setCfg({ ...cfg, endTime: e.target.value })} />
             </div>
-            {isOwner && (
-              <button className="btn primary" onClick={applyConfig}>
-                적용
-              </button>
-            )}
-            {isGuest && (
-              <span className="hint" style={{ marginLeft: 4 }}>(공유 모드: 설정 변경 불가)</span>
-            )}
+            <button className="btn primary" onClick={applyConfig}>
+              적용
+            </button>
           </div>
         </div>
 
@@ -1014,9 +1013,9 @@ export default function ProjectPage({ params }) {
                     🎨 색 수정
                   </button>
                   <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
-                  <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
                 </>
               )}
+              <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
             </div>
             <OverviewGrid
               config={project.config}
@@ -1061,14 +1060,9 @@ export default function ProjectPage({ params }) {
                 </button>
               )}
               {isOwner && multiSel.size > 0 && (
-                <>
-                  <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
-                  <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
-                </>
+                <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
               )}
-              {isOwner && multiSel.size === 0 && (
-                <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
-              )}
+              <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
             </div>
             {multiSel.size === 0 ? (
               <div className="empty-hint">위에서 한 명 이상 선택하면 그 사람들의 일정을 합쳐서 봅니다.</div>
@@ -1104,9 +1098,9 @@ export default function ProjectPage({ params }) {
                     팀 삭제
                   </button>
                   <EventModeButton on={eventMode} onToggle={() => setEventMode((v) => !v)} />
-                  <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
                 </>
               )}
+              <CalendarButton onClick={() => setView("calendar")} count={(project.events || []).length} />
             </div>
             <TeamScheduleView
               team={activeTeam}
@@ -1133,7 +1127,8 @@ export default function ProjectPage({ params }) {
                 style={{ fontSize: 17 }}
                 defaultValue={activePerson.name}
                 key={`pname-${activePerson.id}`}
-                onBlur={(e) => savePersonName(activePerson.id, e.target.value)}
+                readOnly={isGuest}
+                onBlur={(e) => !isGuest && savePersonName(activePerson.id, e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") e.target.blur();
                 }}
@@ -1238,6 +1233,12 @@ export default function ProjectPage({ params }) {
           project={project}
           onSave={(dc) => { saveDateColors(dc); setColorModal(false); }}
           onClose={() => setColorModal(false)}
+        />
+      )}
+      {activityModal && (
+        <ActivityLogModal
+          activities={project.activities || []}
+          onClose={() => setActivityModal(false)}
         />
       )}
       {eventEditing && (
@@ -1390,6 +1391,111 @@ function PasswordGate({ projectName, onAuth, error }) {
 }
 
 // 공유 설정 모달 — 비밀번호 보호 ON/OFF + 관리자/공유 비밀번호 + 링크 복사
+// 활동 내역 모달 — 누가/어떤 변경을 했는지 시간순으로 (관리자 전용)
+function ActivityLogModal({ activities, onClose }) {
+  // 최신부터 보여주기
+  const sorted = useMemo(
+    () => [...(activities || [])].sort((a, b) => (b.ts || 0) - (a.ts || 0)),
+    [activities]
+  );
+  const [filter, setFilter] = useState("all"); // all | person | event | config | other
+
+  function matchesFilter(a) {
+    if (filter === "all") return true;
+    if (filter === "person") return a.type?.startsWith("person.");
+    if (filter === "event") return a.type?.startsWith("event.");
+    if (filter === "config") return a.type === "config" || a.type === "project.rename" || a.type === "notes" || a.type === "color" || a.type === "reorder";
+    if (filter === "other") return !a.type?.startsWith("person.") && !a.type?.startsWith("event.") && a.type !== "config" && a.type !== "project.rename" && a.type !== "notes" && a.type !== "color" && a.type !== "reorder";
+    return true;
+  }
+  const filtered = sorted.filter(matchesFilter);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function iconFor(type) {
+    if (type?.startsWith("person.slots")) return "🗓";
+    if (type?.startsWith("person.memo")) return "📝";
+    if (type?.startsWith("person.add")) return "➕";
+    if (type?.startsWith("person.delete")) return "🗑";
+    if (type?.startsWith("person.rename")) return "✎";
+    if (type?.startsWith("person.move")) return "📍";
+    if (type?.startsWith("team.")) return "🏷";
+    if (type?.startsWith("location.")) return "📍";
+    if (type?.startsWith("event.")) return "📅";
+    if (type === "config") return "⚙️";
+    if (type === "color") return "🎨";
+    if (type === "notes") return "📓";
+    if (type === "security") return "🔐";
+    if (type === "reorder") return "↕️";
+    return "•";
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal activity-log-modal" onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginBottom: 6 }}>📋 수정 내역 <small style={{ fontWeight: 400, color: "var(--muted)" }}>· {sorted.length}건 (최대 500건 보관)</small></h3>
+        <div className="activity-filter-row">
+          {[
+            { k: "all", label: `전체 ${sorted.length}` },
+            { k: "person", label: "사람" },
+            { k: "event", label: "일정" },
+            { k: "config", label: "설정" },
+            { k: "other", label: "기타" },
+          ].map((f) => (
+            <button
+              key={f.k}
+              type="button"
+              className={"activity-filter-chip" + (filter === f.k ? " on" : "")}
+              onClick={() => setFilter(f.k)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        {filtered.length === 0 ? (
+          <div className="empty-hint" style={{ padding: "30px 12px", textAlign: "center" }}>
+            기록된 수정 내역이 없습니다.
+          </div>
+        ) : (
+          <ol className="activity-list">
+            {filtered.map((a) => (
+              <li key={a.id} className="activity-item">
+                <span className="activity-icon">{iconFor(a.type)}</span>
+                <div className="activity-body">
+                  <div className="activity-summary">{a.summary}</div>
+                  <div className="activity-time">{formatTimestamp(a.ts)}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+        <div className="modal-actions">
+          <span style={{ flex: 1 }} />
+          <button className="btn" onClick={onClose}>닫기</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function formatTimestamp(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const now = new Date();
+  const diffMin = Math.floor((now - d) / 60000);
+  if (diffMin < 1) return "방금 전";
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const sameDay = d.toDateString() === now.toDateString();
+  const time = d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  if (sameDay) return `오늘 ${time}`;
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return `어제 ${time}`;
+  return d.toLocaleString("ko-KR", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 // 일정 수정 모달 — 제목/날짜/시작·종료 시간/설명을 편집
 function EventEditModal({ event, onSave, onDelete, onClose }) {
   const [title, setTitle] = useState(event.title || "");
@@ -1992,13 +2098,23 @@ function EventModeButton({ on, onToggle }) {
   );
 }
 
-function Topbar({ onShare, onShareSettings, onDelete, onHome, protectionOn }) {
+function Topbar({ onShare, onShareSettings, onDelete, onHome, protectionOn, guestHint, onShowActivity, activityCount = 0 }) {
   return (
     <div className="topbar">
       <span className="brand" style={{ cursor: onHome ? "pointer" : "default" }} onClick={onHome || undefined}>
         📅 일정 취합
       </span>
+      {guestHint && (
+        <span className="topbar-guest-hint" title="공유 모드: 본인 일정만 입력할 수 있어요">
+          👤 공유 모드 · 본인 일정만 입력 가능
+        </span>
+      )}
       <span className="spacer" />
+      {onShowActivity && (
+        <button className="btn small" onClick={onShowActivity} title="수정 내역 보기 (관리자 전용)">
+          📋 수정 내역{activityCount > 0 ? ` (${activityCount})` : ""}
+        </button>
+      )}
       {onShareSettings && (
         <button className="btn small" onClick={onShareSettings} title="공유 비밀번호 설정">
           {protectionOn ? "🔒 공유 설정" : "🔓 공유 설정"}
