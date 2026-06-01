@@ -50,6 +50,7 @@ export default function ProjectPage({ params }) {
   const [shareModal, setShareModal] = useState(false);
   const [colorModal, setColorModal] = useState(false); // 🎨 색 수정 모달
   const [eventCalModal, setEventCalModal] = useState(false); // 🗓 전체 일정 달력 모달
+  const [eventEditing, setEventEditing] = useState(null); // 수정 중인 일정 객체
 
   // 권한: 프로젝트 로드 시 세션에서 권한 복원 또는 게이트
   useEffect(() => {
@@ -593,6 +594,17 @@ export default function ProjectPage({ params }) {
     }
   }
 
+  async function updateEventFn(eventId, patch) {
+    try {
+      const ev = await persist(api.patch(`/api/projects/${id}/events/${eventId}`, patch));
+      bumpRev();
+      setProject((p) => ({ ...p, events: (p.events || []).map((e) => (e.id === eventId ? ev : e)) }));
+      toast("일정이 수정되었습니다");
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
   async function saveProjectNotes(notes) {
     if ((project.notes || "") === notes) return;
     try {
@@ -982,6 +994,7 @@ export default function ProjectPage({ params }) {
               eventMode={eventMode && isOwner}
               onCreateEvent={createEvent}
               onDeleteEvent={removeEvent}
+              onEditEvent={isOwner ? (ev) => setEventEditing(ev) : undefined}
               dateColors={project.dateColors || {}}
             />
           </>
@@ -1030,6 +1043,7 @@ export default function ProjectPage({ params }) {
                 eventMode={eventMode && isOwner}
                 onCreateEvent={createEvent}
                 onDeleteEvent={removeEvent}
+              onEditEvent={isOwner ? (ev) => setEventEditing(ev) : undefined}
                 dateColors={project.dateColors || {}}
               />
             )}
@@ -1064,6 +1078,7 @@ export default function ProjectPage({ params }) {
               eventMode={eventMode && isOwner}
               onCreateEvent={createEvent}
               onDeleteEvent={removeEvent}
+              onEditEvent={isOwner ? (ev) => setEventEditing(ev) : undefined}
               dateColors={project.dateColors || {}}
             />
           </>
@@ -1191,7 +1206,24 @@ export default function ProjectPage({ params }) {
           dateColors={project.dateColors || {}}
           canDelete={isOwner}
           onDeleteEvent={removeEvent}
+          onEditEvent={isOwner ? (ev) => setEventEditing(ev) : null}
           onClose={() => setEventCalModal(false)}
+        />
+      )}
+      {eventEditing && (
+        <EventEditModal
+          event={eventEditing}
+          onSave={async (patch) => {
+            await updateEventFn(eventEditing.id, patch);
+            setEventEditing(null);
+          }}
+          onDelete={() => {
+            if (window.confirm(`"${eventEditing.title}" 일정을 삭제할까요?`)) {
+              removeEvent(eventEditing.id);
+              setEventEditing(null);
+            }
+          }}
+          onClose={() => setEventEditing(null)}
         />
       )}
       {dupModal && (
@@ -1328,8 +1360,83 @@ function PasswordGate({ projectName, onAuth, error }) {
 }
 
 // 공유 설정 모달 — 비밀번호 보호 ON/OFF + 관리자/공유 비밀번호 + 링크 복사
+// 일정 수정 모달 — 제목/날짜/시작·종료 시간/설명을 편집
+function EventEditModal({ event, onSave, onDelete, onClose }) {
+  const [title, setTitle] = useState(event.title || "");
+  const [date, setDate] = useState(event.date || "");
+  const [startTime, setStartTime] = useState(event.startTime || "");
+  const [endTime, setEndTime] = useState(event.endTime || "");
+  const [description, setDescription] = useState(event.description || "");
+  const [submitting, setSubmitting] = useState(false);
+  // ESC로 취소
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  async function submit(e) {
+    e.preventDefault();
+    const t = title.trim();
+    if (!t) { toast("제목을 입력하세요."); return; }
+    if (!date) { toast("날짜를 선택하세요."); return; }
+    if (!startTime || !endTime) { toast("시작·종료 시간을 입력하세요."); return; }
+    setSubmitting(true);
+    await onSave({ title: t, date, startTime, endTime, description: description.trim() });
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal event-edit-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>✎ 일정 수정</h3>
+        <form onSubmit={submit}>
+          <label className="evt-edit-row">
+            <span>제목</span>
+            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} autoFocus />
+          </label>
+          <label className="evt-edit-row">
+            <span>날짜</span>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </label>
+          <div className="evt-edit-row">
+            <span>시간</span>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flex: 1 }}>
+              <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+              <span>–</span>
+              <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+            </div>
+          </div>
+          <label className="evt-edit-row">
+            <span>설명</span>
+            <textarea
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={300}
+              placeholder="설명 (선택)"
+            />
+          </label>
+          <div className="modal-actions">
+            {onDelete && (
+              <button type="button" className="btn danger small" onClick={onDelete} disabled={submitting}>
+                🗑 삭제
+              </button>
+            )}
+            <span style={{ flex: 1 }} />
+            <button type="button" className="btn" onClick={onClose} disabled={submitting}>취소</button>
+            <button type="submit" className="btn primary" disabled={submitting}>
+              {submitting ? "저장 중…" : "저장"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // 전체 일정 달력 모달 — 잡힌 일정을 월별 달력에 표시
-function EventCalendarModal({ events, config, dateColors, canDelete, onDeleteEvent, onClose }) {
+function EventCalendarModal({ events, config, dateColors, canDelete, onDeleteEvent, onEditEvent, onClose }) {
+  const [big, setBig] = useState(false); // '크게 보기' 토글 — 셀 크기와 모달 폭을 확장
   // 날짜별 일정 묶음 + startTime 기준 정렬
   const byDate = useMemo(() => {
     const m = new Map();
@@ -1384,8 +1491,19 @@ function EventCalendarModal({ events, config, dateColors, canDelete, onDeleteEve
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal event-cal-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>🗓 전체 일정{events.length > 0 ? ` (${events.length}개)` : ""}</h3>
+      <div className={"modal event-cal-modal" + (big ? " big" : "")} onClick={(e) => e.stopPropagation()}>
+        <div className="event-cal-head">
+          <h3 style={{ margin: 0 }}>🗓 전체 일정{events.length > 0 ? ` (${events.length}개)` : ""}</h3>
+          <span style={{ flex: 1 }} />
+          <button
+            type="button"
+            className="btn small"
+            onClick={() => setBig((v) => !v)}
+            title="달력 크기를 토글합니다"
+          >
+            {big ? "🔍 보통 크기" : "🔍 크게 보기"}
+          </button>
+        </div>
         {events.length === 0 ? (
           <div className="empty-hint" style={{ padding: "24px 12px" }}>
             아직 잡힌 일정이 없습니다. 전체취합 표에서 <strong>📅 일정 잡기</strong>를 켜고 셀을 드래그해 추가할 수 있어요.
@@ -1401,11 +1519,13 @@ function EventCalendarModal({ events, config, dateColors, canDelete, onDeleteEve
                 dateColors={dateColors}
                 canDelete={canDelete}
                 onDelete={handleDelete}
+                onEdit={onEditEvent}
               />
             ))}
           </div>
         )}
         <div className="modal-actions">
+          {onEditEvent && <span className="hint">💡 일정을 클릭하면 수정할 수 있어요</span>}
           <span style={{ flex: 1 }} />
           <button type="button" className="btn" onClick={onClose}>닫기</button>
         </div>
@@ -1414,7 +1534,7 @@ function EventCalendarModal({ events, config, dateColors, canDelete, onDeleteEve
   );
 }
 
-function MonthCalendar({ year, month, byDate, dateColors, canDelete, onDelete }) {
+function MonthCalendar({ year, month, byDate, dateColors, canDelete, onDelete, onEdit }) {
   const firstDay = new Date(year, month, 1);
   const startWeekday = firstDay.getDay(); // 0=일
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -1452,16 +1572,18 @@ function MonthCalendar({ year, month, byDate, dateColors, canDelete, onDelete })
               {evs.map((ev) => (
                 <div
                   key={ev.id}
-                  className="day-evt"
-                  title={`${ev.startTime}–${ev.endTime} ${ev.title}${ev.description ? `\n${ev.description}` : ""}`}
+                  className={"day-evt" + (onEdit ? " clickable" : "")}
+                  title={`${ev.startTime}–${ev.endTime} ${ev.title}${ev.description ? `\n${ev.description}` : ""}${onEdit ? "\n(클릭하면 수정)" : ""}`}
+                  onClick={onEdit ? () => onEdit(ev) : undefined}
                 >
                   <span className="day-evt-time">{ev.startTime}</span>
                   <span className="day-evt-title">{ev.title}</span>
+                  <span className="day-evt-end">~{ev.endTime}</span>
                   {canDelete && onDelete && (
                     <button
                       type="button"
                       className="day-evt-del"
-                      onClick={() => onDelete(ev)}
+                      onClick={(e) => { e.stopPropagation(); onDelete(ev); }}
                       title="삭제"
                       aria-label="일정 삭제"
                     >×</button>
@@ -1666,7 +1788,7 @@ function ShareModal({ project, projectUrl, onSave, onClose }) {
 }
 
 // 팀 뷰: 멤버 칩으로 토글하여 일부만 포함한 일정을 즉시 볼 수 있음
-function TeamScheduleView({ team, config, people, locationName, events, eventMode, onCreateEvent, onDeleteEvent, dateColors }) {
+function TeamScheduleView({ team, config, people, locationName, events, eventMode, onCreateEvent, onDeleteEvent, onEditEvent, dateColors }) {
   const [hidden, setHidden] = useState(() => new Set());
   // 팀이 바뀌면 토글 상태 초기화
   useEffect(() => { setHidden(new Set()); }, [team.id]);
@@ -1721,6 +1843,7 @@ function TeamScheduleView({ team, config, people, locationName, events, eventMod
           eventMode={eventMode}
           onCreateEvent={onCreateEvent}
           onDeleteEvent={onDeleteEvent}
+          onEditEvent={onEditEvent}
           dateColors={dateColors}
         />
       )}

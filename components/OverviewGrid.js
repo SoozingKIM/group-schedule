@@ -21,7 +21,7 @@ function slotEndTime(s) {
   return `${pad2(Math.floor(m / 60) % 24)}:${pad2(m % 60)}`;
 }
 
-export default function OverviewGrid({ config, people, locationName, events = [], eventMode = false, onCreateEvent, onDeleteEvent, dateColors = {} }) {
+export default function OverviewGrid({ config, people, locationName, events = [], eventMode = false, onCreateEvent, onDeleteEvent, onEditEvent, dateColors = {} }) {
   const dates = useMemo(() => generateDates(config.startDate, config.endDate), [config.startDate, config.endDate]);
   const slots = useMemo(
     () => generateSlots(config.startTime, config.endTime, config.slotMinutes || 30),
@@ -439,8 +439,13 @@ export default function OverviewGrid({ config, people, locationName, events = []
           x={hoverEvent.x}
           y={hoverEvent.y}
           canDelete={!!onDeleteEvent && eventMode}
+          canEdit={!!onEditEvent && eventMode}
           onDelete={() => {
             if (onDeleteEvent) onDeleteEvent(hoverEvent.event.id);
+            setHoverEvent(null);
+          }}
+          onEdit={() => {
+            if (onEditEvent) onEditEvent(hoverEvent.event);
             setHoverEvent(null);
           }}
           onMouseEnter={() => { /* 유지 */ }}
@@ -640,7 +645,7 @@ function EventInputPopup({ info, slots, onCancel, onSubmit }) {
 }
 
 // 일정 배지에 마우스를 올렸을 때 보이는 툴팁 (+ 삭제 버튼)
-function EventTooltip({ event, x, y, canDelete, onDelete, onMouseEnter, onMouseLeave }) {
+function EventTooltip({ event, x, y, canDelete, canEdit, onDelete, onEdit, onMouseEnter, onMouseLeave }) {
   const pad = 14;
   const w = 240;
   const left = Math.min(x + 12, (typeof window !== "undefined" ? window.innerWidth : 1024) - w - pad);
@@ -657,15 +662,26 @@ function EventTooltip({ event, x, y, canDelete, onDelete, onMouseEnter, onMouseL
         {event.date} · {event.startTime}–{event.endTime}
       </div>
       {event.description && <div className="evt-tt-desc">{event.description}</div>}
-      {canDelete && (
+      {(canDelete || canEdit) && (
         <div className="evt-tt-actions">
-          <button
-            type="button"
-            className="btn-danger-sm"
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          >
-            🗑 삭제
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              className="btn-ghost-sm"
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            >
+              ✎ 수정
+            </button>
+          )}
+          {canDelete && (
+            <button
+              type="button"
+              className="btn-danger-sm"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            >
+              🗑 삭제
+            </button>
+          )}
         </div>
       )}
     </div>
