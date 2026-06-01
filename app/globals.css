@@ -626,3 +626,242 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
   td.slot { min-width: 26px; }
   td.heat { min-width: 24px; }
 }
+
+/* ───── 일정 잡기(Event) 모드 ───── */
+td.heat { position: relative; }
+table.grid.event-mode td.heat { cursor: crosshair; }
+table.grid.event-mode td.heat:hover { outline: 1px solid rgba(229, 72, 77, 0.35); outline-offset: -1px; }
+
+/* 드래그 중 임시 강조 */
+td.heat.evt-drag {
+  background: rgba(229, 72, 77, 0.18) !important;
+  box-shadow: inset 0 0 0 1px rgba(229, 72, 77, 0.55);
+}
+td.heat.evt-drag-first { box-shadow: inset 0 2px 0 0 #e5484d, inset 1px 0 0 0 #e5484d, inset -1px 0 0 0 #e5484d; }
+td.heat.evt-drag-last  { box-shadow: inset 0 -2px 0 0 #e5484d, inset 1px 0 0 0 #e5484d, inset -1px 0 0 0 #e5484d; }
+
+/* 저장된 이벤트 셀: 좌우/상하 붉은 테두리 */
+td.heat.evt-cell {
+  box-shadow: inset 1px 0 0 0 #e5484d, inset -1px 0 0 0 #e5484d;
+}
+td.heat.evt-first {
+  box-shadow: inset 1px 0 0 0 #e5484d, inset -1px 0 0 0 #e5484d, inset 0 2px 0 0 #e5484d;
+}
+td.heat.evt-last {
+  box-shadow: inset 1px 0 0 0 #e5484d, inset -1px 0 0 0 #e5484d, inset 0 -2px 0 0 #e5484d;
+}
+td.heat.evt-first.evt-last {
+  box-shadow:
+    inset 1px 0 0 0 #e5484d,
+    inset -1px 0 0 0 #e5484d,
+    inset 0 2px 0 0 #e5484d,
+    inset 0 -2px 0 0 #e5484d;
+}
+
+/* 배지: 작게 떠있음 */
+.evt-badge {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  right: 1px;
+  background: #e5484d;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1.1;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-weight: 600;
+  cursor: help;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 4;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.evt-badge:hover { background: #c5363a; }
+
+/* 일정 입력 팝업 */
+.evt-input-popup {
+  position: fixed;
+  background: #fff;
+  border: 2px solid #e5484d;
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+  z-index: 1000;
+  font-size: 12px;
+}
+.evt-input-head {
+  font-weight: 600;
+  color: #1f2330;
+  margin-bottom: 8px;
+  font-size: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f0e3e4;
+}
+.evt-input-title {
+  width: 100%;
+  border: 1px solid #d8dce4;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  margin-bottom: 6px;
+  box-sizing: border-box;
+}
+.evt-input-title:focus { outline: none; border-color: #e5484d; }
+.evt-input-desc {
+  width: 100%;
+  border: 1px solid #d8dce4;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  margin-bottom: 8px;
+  resize: vertical;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.evt-input-desc:focus { outline: none; border-color: #e5484d; }
+.evt-input-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.evt-input-actions .btn-ghost,
+.evt-input-actions .btn-primary {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.evt-input-actions .btn-ghost {
+  background: #f3f4f7;
+  color: #4a5063;
+  border-color: #d8dce4;
+}
+.evt-input-actions .btn-ghost:hover:not(:disabled) { background: #e8eaef; }
+.evt-input-actions .btn-primary {
+  background: #e5484d;
+  color: #fff;
+}
+.evt-input-actions .btn-primary:hover:not(:disabled) { background: #c5363a; }
+.evt-input-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* 이벤트 호버 툴팁 */
+.evt-tooltip {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #e5484d;
+  border-radius: 6px;
+  padding: 8px 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  z-index: 999;
+  font-size: 12px;
+  pointer-events: auto;
+}
+.evt-tt-head {
+  font-weight: 600;
+  color: #c5363a;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+.evt-tt-when {
+  color: #4a5063;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.evt-tt-desc {
+  color: #1f2330;
+  font-size: 11px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #f0e3e4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.evt-tt-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.btn-danger-sm {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: #fff;
+  color: #c5363a;
+  border: 1px solid #e5484d;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-danger-sm:hover { background: #fdebec; }
+
+/* ───── 팀 뷰: 멤버 토글 칩 ───── */
+.team-members-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  margin: 0 0 8px 0;
+  background: #f6f7fb;
+  border: 1px solid #e1e4eb;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.team-members-label {
+  color: #4a5063;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.team-members-label strong { color: #1f2330; }
+.team-members-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+.team-member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.1s, color 0.1s;
+}
+.team-member-chip.on {
+  background: #4f6ef7;
+  color: #fff;
+  border-color: #4f6ef7;
+}
+.team-member-chip.on:hover { background: #3a59e8; }
+.team-member-chip.off {
+  background: #fff;
+  color: #8a8f99;
+  border-color: #d8dce4;
+  text-decoration: line-through;
+}
+.team-member-chip.off:hover { background: #f0f2f6; color: #4a5063; }
+.team-members-actions {
+  display: flex;
+  gap: 4px;
+}
+.btn-ghost-sm {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: #fff;
+  color: #4a5063;
+  border: 1px solid #d8dce4;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-ghost-sm:hover:not(:disabled) { background: #f0f2f6; }
+.btn-ghost-sm:disabled { opacity: 0.45; cursor: not-allowed; }
+@media (max-width: 720px) {
+  .team-members-bar { padding: 6px 8px; gap: 6px; }
+  .team-member-chip { padding: 2px 6px; font-size: 10px; }
+}

@@ -12,7 +12,15 @@ export function formatDuration(totalMin) {
   return `${m}분`;
 }
 
-export default function OverviewGrid({ config, people, locationName }) {
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+function slotEndTime(s) {
+  const m = s.minutes + 30;
+  return `${pad2(Math.floor(m / 60) % 24)}:${pad2(m % 60)}`;
+}
+
+export default function OverviewGrid({ config, people, locationName, events = [], eventMode = false, onCreateEvent, onDeleteEvent }) {
   const dates = useMemo(() => generateDates(config.startDate, config.endDate), [config.startDate, config.endDate]);
   const slots = useMemo(
     () => generateSlots(config.startTime, config.endTime, config.slotMinutes || 30),
@@ -63,6 +71,90 @@ export default function OverviewGrid({ config, people, locationName }) {
     document.addEventListener("click", onDoc);
     return () => document.removeEventListener("click", onDoc);
   }, [pinned]);
+
+  // ─── 일정 잡기 모드 ──────────────────────────────────────────────
+  // eventDrag: 드래그 중 임시 상태 / eventInput: 드래그 종료 후 제목 입력 팝업
+  const [eventDrag, setEventDrag] = useState(null); // { cIdx, startR, endR }
+  const [eventInput, setEventInput] = useState(null); // { date, dt, startR, endR, x, y }
+  const [hoverEvent, setHoverEvent] = useState(null); // { event, x, y }
+
+  // 모드 종료 시 상태 정리
+  useEffect(() => {
+    if (!eventMode) {
+      setEventDrag(null);
+      setEventInput(null);
+      setHoverEvent(null);
+    } else {
+      // 일정 모드에서는 일반 호버/핀 툴팁 끔
+      setHover(null);
+      setPinned(null);
+    }
+  }, [eventMode]);
+
+  // 드래그 중 document 단위 pointermove/up 처리
+  useEffect(() => {
+    if (!eventDrag || !eventMode) return;
+    const onMove = (e) => {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const td = el && el.closest && el.closest("td.heat");
+      if (!td) return;
+      const r = +td.dataset.r;
+      const c = +td.dataset.c;
+      if (c !== eventDrag.cIdx) return; // 같은 날짜 안에서만
+      if (r === eventDrag.endR) return;
+      setEventDrag((d) => (d ? { ...d, endR: r } : d));
+    };
+    const onUp = (e) => {
+      const cur = eventDrag;
+      if (!cur) return;
+      const startR = Math.min(cur.startR, cur.endR);
+      const endR = Math.max(cur.startR, cur.endR);
+      const dt = dates[cur.cIdx];
+      if (dt) {
+        setEventInput({
+          date: dt.key,
+          dt,
+          startR,
+          endR,
+          x: e.clientX,
+          y: e.clientY,
+        });
+      }
+      setEventDrag(null);
+    };
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    return () => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+    };
+  }, [eventDrag, eventMode, dates]);
+
+  // 슬롯 라벨 → 인덱스 매핑으로 events를 셀 단위로 풀어둠
+  const eventCells = useMemo(() => {
+    const map = new Map(); // `${dateKey}:${r}` -> [{ event, isFirst, isLast }]
+    for (const ev of events) {
+      if (!ev || !ev.date || !ev.startTime || !ev.endTime) continue;
+      const dateIdx = dates.findIndex((d) => d.key === ev.date);
+      if (dateIdx === -1) continue;
+      let firstR = -1;
+      for (let i = 0; i < slots.length; i++) {
+        if (slots[i].label === ev.startTime) { firstR = i; break; }
+      }
+      if (firstR === -1) continue;
+      let lastR = -1;
+      for (let i = firstR; i < slots.length; i++) {
+        if (slotEndTime(slots[i]) === ev.endTime) { lastR = i; break; }
+      }
+      if (lastR === -1) continue;
+      for (let i = firstR; i <= lastR; i++) {
+        const k = `${ev.date}:${i}`;
+        if (!map.has(k)) map.set(k, []);
+        map.get(k).push({ event: ev, isFirst: i === firstR, isLast: i === lastR });
+      }
+    }
+    return map;
+  }, [events, dates, slots]);
 
   if (dates.length === 0 || slots.length === 0) {
     return <div className="empty-hint">설정의 날짜/시간 범위를 확인하세요.</div>;
@@ -143,30 +235,49 @@ export default function OverviewGrid({ config, people, locationName }) {
     return `${s.label} - ${pad(eh)}:${pad(em)}`;
   }
   function onCellEnter(e, dt, s, key) {
-    if (pinned) return; // 핀 상태에서는 호버 무시
+    if (eventMode || pinned) return; // 일정 모드 / 핀 상태에서는 호버 무시
     setHover({ key, dateLabel: `${dt.label}(${dt.dowLabel})`, timeLabel: fmtRange(s), x: e.clientX, y: e.clientY });
   }
   function onCellMove(e) {
-    if (pinned) return;
+    if (eventMode || pinned) return;
     setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
   }
   function onCellLeave() {
-    if (pinned) return;
+    if (eventMode || pinned) return;
     setHover(null);
   }
   function onCellClick(e, dt, s, key) {
+    if (eventMode) { e.stopPropagation(); return; } // 일정 모드에서는 일반 클릭 비활성
     e.stopPropagation();
     const next = { key, dateLabel: `${dt.label}(${dt.dowLabel})`, timeLabel: fmtRange(s), x: e.clientX, y: e.clientY };
     setPinned((cur) => (cur && cur.key === key ? null : next));
     setHover(null);
   }
 
+  // 일정 모드: 드래그 시작
+  function onCellPointerDown(e, dt, s, key, cIdx, r) {
+    if (!eventMode) return;
+    if (e.button !== 0) return; // 좌클릭만
+    e.preventDefault();
+    setEventDrag({ cIdx, startR: r, endR: r });
+    setHover(null);
+    setHoverEvent(null);
+  }
+
+  // 셀이 현재 이벤트 드래그 영역에 포함되는지
+  function isInDrag(cIdx, r) {
+    if (!eventDrag || eventDrag.cIdx !== cIdx) return false;
+    const lo = Math.min(eventDrag.startR, eventDrag.endR);
+    const hi = Math.max(eventDrag.startR, eventDrag.endR);
+    return r >= lo && r <= hi;
+  }
+
   const td = active ? buildTooltipData(active.key) : null;
 
   return (
     <>
-      <div className="grid-wrap">
-        <table className="grid" ref={tableRef} onMouseOver={onTableHover} onMouseLeave={clearAxisHover}>
+      <div className={"grid-wrap" + (eventMode ? " event-mode" : "")}>
+        <table className={"grid" + (eventMode ? " event-mode" : "")} ref={tableRef} onMouseOver={onTableHover} onMouseLeave={clearAxisHover}>
           <thead>
             <tr>
               <th className="corner col-time">시간</th>
@@ -200,6 +311,14 @@ export default function OverviewGrid({ config, people, locationName }) {
                     const isActive = active && active.key === k;
                     const isFull = total > 0 && c === total;
                     const isMarked = isInMarkedRange(dt);
+                    const evList = eventCells.get(`${dt.key}:${r}`) || [];
+                    const hasEvt = evList.length > 0;
+                    const firstEvts = evList.filter((x) => x.isFirst);
+                    const isEvtFirst = firstEvts.length > 0;
+                    const isEvtLast = evList.some((x) => x.isLast);
+                    const drag = isInDrag(cIdx, r);
+                    const dragLo = eventDrag && Math.min(eventDrag.startR, eventDrag.endR);
+                    const dragHi = eventDrag && Math.max(eventDrag.startR, eventDrag.endR);
                     return (
                       <td
                         key={dt.key}
@@ -208,7 +327,13 @@ export default function OverviewGrid({ config, people, locationName }) {
                           (isActive ? " active" : "") +
                           (pinned && pinned.key === k ? " pinned" : "") +
                           (isFull ? " full" : "") +
-                          colClass(cIdx, dt)
+                          colClass(cIdx, dt) +
+                          (hasEvt ? " evt-cell" : "") +
+                          (isEvtFirst ? " evt-first" : "") +
+                          (isEvtLast ? " evt-last" : "") +
+                          (drag ? " evt-drag" : "") +
+                          (drag && r === dragLo ? " evt-drag-first" : "") +
+                          (drag && r === dragHi ? " evt-drag-last" : "")
                         }
                         data-c={cIdx}
                         data-r={r}
@@ -217,8 +342,28 @@ export default function OverviewGrid({ config, people, locationName }) {
                         onMouseMove={onCellMove}
                         onMouseLeave={onCellLeave}
                         onClick={(e) => onCellClick(e, dt, s, k)}
+                        onPointerDown={(e) => onCellPointerDown(e, dt, s, k, cIdx, r)}
                       >
                         {c > 0 ? c : ""}
+                        {isEvtFirst && firstEvts.map(({ event }) => (
+                          <span
+                            key={event.id}
+                            className="evt-badge"
+                            onMouseEnter={(e) => {
+                              if (eventMode) return; // 일정 모드에선 드래그 우선
+                              setHoverEvent({ event, x: e.clientX, y: e.clientY });
+                            }}
+                            onMouseMove={(e) => {
+                              setHoverEvent((h) => (h && h.event.id === event.id ? { ...h, x: e.clientX, y: e.clientY } : h));
+                            }}
+                            onMouseLeave={() => setHoverEvent(null)}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            title={event.title}
+                          >
+                            📌 {event.title}
+                          </span>
+                        ))}
                       </td>
                     );
                   })}
@@ -229,7 +374,7 @@ export default function OverviewGrid({ config, people, locationName }) {
         </table>
       </div>
 
-      {active && td && (
+      {active && td && !eventMode && (
         <CellTooltip
           x={active.x}
           y={active.y}
@@ -238,6 +383,43 @@ export default function OverviewGrid({ config, people, locationName }) {
           available={td.available}
           unavailable={td.unavailable}
           pinned={!!pinned}
+        />
+      )}
+
+      {eventInput && (
+        <EventInputPopup
+          info={eventInput}
+          slots={slots}
+          onCancel={() => setEventInput(null)}
+          onSubmit={async (data) => {
+            const startTime = slots[eventInput.startR].label;
+            const endTime = slotEndTime(slots[eventInput.endR]);
+            if (onCreateEvent) {
+              await onCreateEvent({
+                title: data.title,
+                date: eventInput.date,
+                startTime,
+                endTime,
+                description: data.description,
+              });
+            }
+            setEventInput(null);
+          }}
+        />
+      )}
+
+      {hoverEvent && (
+        <EventTooltip
+          event={hoverEvent.event}
+          x={hoverEvent.x}
+          y={hoverEvent.y}
+          canDelete={!!onDeleteEvent && eventMode}
+          onDelete={() => {
+            if (onDeleteEvent) onDeleteEvent(hoverEvent.event.id);
+            setHoverEvent(null);
+          }}
+          onMouseEnter={() => { /* 유지 */ }}
+          onMouseLeave={() => setHoverEvent(null)}
         />
       )}
 
@@ -354,6 +536,113 @@ function RankingList({ people, dates, slots, counts, locationName, maxItems = 15
           );
         })}
       </ol>
+    </div>
+  );
+}
+
+// 일정 입력 팝업 — 드래그가 끝난 위치 근처에 떠서 제목/메모를 받음
+function EventInputPopup({ info, slots, onCancel, onSubmit }) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const inputRef = useRef(null);
+  useEffect(() => {
+    inputRef.current && inputRef.current.focus();
+  }, []);
+  // ESC로 취소
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onCancel(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  const pad = 14;
+  const w = 240;
+  const h = 200;
+  const left = Math.min(info.x + 12, (typeof window !== "undefined" ? window.innerWidth : 1024) - w - pad);
+  const top = Math.min(info.y + 14, (typeof window !== "undefined" ? window.innerHeight : 768) - h - pad);
+  const startLabel = slots[info.startR].label;
+  const endLabel = slotEndTime(slots[info.endR]);
+  const dateLabel = `${info.dt.label}(${info.dt.dowLabel})`;
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!title.trim()) {
+      inputRef.current && inputRef.current.focus();
+      return;
+    }
+    setSubmitting(true);
+    await onSubmit({ title: title.trim(), description: description.trim() });
+  }
+
+  return (
+    <div
+      className="evt-input-popup"
+      style={{ left, top, width: w }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <form onSubmit={submit}>
+        <div className="evt-input-head">
+          📅 {dateLabel} · {startLabel}–{endLabel}
+        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          className="evt-input-title"
+          placeholder="일정 제목"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={60}
+        />
+        <textarea
+          className="evt-input-desc"
+          placeholder="설명 (선택)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          maxLength={300}
+        />
+        <div className="evt-input-actions">
+          <button type="button" className="btn-ghost" onClick={onCancel} disabled={submitting}>취소</button>
+          <button type="submit" className="btn-primary" disabled={submitting || !title.trim()}>
+            {submitting ? "추가 중…" : "추가"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// 일정 배지에 마우스를 올렸을 때 보이는 툴팁 (+ 삭제 버튼)
+function EventTooltip({ event, x, y, canDelete, onDelete, onMouseEnter, onMouseLeave }) {
+  const pad = 14;
+  const w = 240;
+  const left = Math.min(x + 12, (typeof window !== "undefined" ? window.innerWidth : 1024) - w - pad);
+  const top = Math.min(y + 14, (typeof window !== "undefined" ? window.innerHeight : 768) - 160);
+  return (
+    <div
+      className="evt-tooltip"
+      style={{ left, top, width: w }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      <div className="evt-tt-head">📅 {event.title}</div>
+      <div className="evt-tt-when">
+        {event.date} · {event.startTime}–{event.endTime}
+      </div>
+      {event.description && <div className="evt-tt-desc">{event.description}</div>}
+      {canDelete && (
+        <div className="evt-tt-actions">
+          <button
+            type="button"
+            className="btn-danger-sm"
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          >
+            🗑 삭제
+          </button>
+        </div>
+      )}
     </div>
   );
 }

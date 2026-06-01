@@ -42,6 +42,7 @@ export default function ProjectPage({ params }) {
   const [locSubTabs, setLocSubTabs] = useState({}); // { locId: lastActiveTabInThatLocation } — 위치 전환 시 복원용
   const subTabsLoadedRef = useRef(false); // sessionStorage 1회만 로드
   const [notesEditing, setNotesEditing] = useState(false); // 비었을 때 오너가 '메모 쓰기' 누르면 패널 펼침
+  const [eventMode, setEventMode] = useState(false); // '일정 잡기' 모드 켰을 때 셀 드래그로 약속 생성
   const [authMode, setAuthMode] = useState("loading"); // 'loading' | 'pending' | 'owner' | 'guest'
   const [authError, setAuthError] = useState(null);
   const [shareModal, setShareModal] = useState(false);
@@ -554,6 +555,28 @@ export default function ProjectPage({ params }) {
     }
   }
 
+  async function createEvent(payload) {
+    try {
+      const ev = await persist(api.post(`/api/projects/${id}/events`, payload));
+      bumpRev();
+      setProject((p) => ({ ...p, events: [...(p.events || []), ev] }));
+      toast("일정이 추가되었습니다");
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  async function removeEvent(eventId) {
+    try {
+      await persist(api.del(`/api/projects/${id}/events/${eventId}`));
+      bumpRev();
+      setProject((p) => ({ ...p, events: (p.events || []).filter((e) => e.id !== eventId) }));
+      toast("일정이 삭제되었습니다");
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
   async function saveProjectNotes(notes) {
     if ((project.notes || "") === notes) return;
     try {
@@ -656,6 +679,8 @@ export default function ProjectPage({ params }) {
         onDelete={isOwner ? deleteProject : null}
         onHome={() => router.push("/")}
         protectionOn={!!project.adminPassword || !!project.sharePassword}
+        onEventMode={isOwner ? () => setEventMode((v) => !v) : null}
+        eventModeOn={eventMode}
       />
 
       <div className="container">
@@ -924,6 +949,10 @@ export default function ProjectPage({ params }) {
               config={project.config}
               people={activeLocPeople}
               locationName={activeLoc ? activeLoc.name : "개인"}
+              events={project.events || []}
+              eventMode={eventMode && isOwner}
+              onCreateEvent={createEvent}
+              onDeleteEvent={removeEvent}
             />
           </>
         ) : isMultiTab ? (
@@ -987,10 +1016,15 @@ export default function ProjectPage({ params }) {
                 </>
               )}
             </div>
-            <OverviewGrid
+            <TeamScheduleView
+              team={activeTeam}
               config={project.config}
               people={project.people.filter((p) => activeTeam.memberIds.includes(p.id))}
               locationName={(project.locations || []).find((l) => l.id === activeTeam.locationId)?.name || "개인"}
+              events={project.events || []}
+              eventMode={eventMode && isOwner}
+              onCreateEvent={createEvent}
+              onDeleteEvent={removeEvent}
             />
           </>
         ) : activePerson ? (
@@ -1179,7 +1213,12 @@ function CompareView({ project, compare, setCompare }) {
           </select>
           <span className="hint">전체 취합 · 칸 클릭하여 인원 고정</span>
         </div>
-        <OverviewGrid config={project.config} people={people} locationName={loc?.name || "?"} />
+        <OverviewGrid
+          config={project.config}
+          people={people}
+          locationName={loc?.name || "?"}
+          events={project.events || []}
+        />
       </div>
     );
   };
@@ -1324,6 +1363,68 @@ function ShareModal({ project, projectUrl, onSave, onClose }) {
   );
 }
 
+// 팀 뷰: 멤버 칩으로 토글하여 일부만 포함한 일정을 즉시 볼 수 있음
+function TeamScheduleView({ team, config, people, locationName, events, eventMode, onCreateEvent, onDeleteEvent }) {
+  const [hidden, setHidden] = useState(() => new Set());
+  // 팀이 바뀌면 토글 상태 초기화
+  useEffect(() => { setHidden(new Set()); }, [team.id]);
+  const visiblePeople = people.filter((p) => !hidden.has(p.id));
+  const total = people.length;
+  const activeCount = visiblePeople.length;
+  function toggle(id) {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function showAll() { setHidden(new Set()); }
+  function hideAll() { setHidden(new Set(people.map((p) => p.id))); }
+  return (
+    <>
+      <div className="team-members-bar">
+        <span className="team-members-label">
+          팀원 <strong>{activeCount}</strong>/{total}
+        </span>
+        <div className="team-members-chips">
+          {people.map((p) => {
+            const isOn = !hidden.has(p.id);
+            return (
+              <button
+                type="button"
+                key={p.id}
+                className={"team-member-chip" + (isOn ? " on" : " off")}
+                onClick={() => toggle(p.id)}
+                title={isOn ? "클릭하면 일정에서 제외합니다" : "클릭하면 일정에 포함합니다"}
+              >
+                {isOn ? "✓" : "○"} {p.name}
+              </button>
+            );
+          })}
+        </div>
+        <div className="team-members-actions">
+          <button type="button" className="btn-ghost-sm" onClick={showAll} disabled={hidden.size === 0}>전체</button>
+          <button type="button" className="btn-ghost-sm" onClick={hideAll} disabled={activeCount === 0}>모두 끄기</button>
+        </div>
+      </div>
+      {activeCount === 0 ? (
+        <div className="empty-hint">표시할 팀원이 모두 꺼져 있습니다. 위에서 켜주세요.</div>
+      ) : (
+        <OverviewGrid
+          config={config}
+          people={visiblePeople}
+          locationName={locationName}
+          events={events}
+          eventMode={eventMode}
+          onCreateEvent={onCreateEvent}
+          onDeleteEvent={onDeleteEvent}
+        />
+      )}
+    </>
+  );
+}
+
 function TeamModal({ projectPeople, locationLabel, initial, onSave, onClose }) {
   const [name, setName] = useState(initial?.name || "");
   const [memberIds, setMemberIds] = useState(() => new Set(initial?.memberIds || []));
@@ -1403,13 +1504,22 @@ function TeamModal({ projectPeople, locationLabel, initial, onSave, onClose }) {
   );
 }
 
-function Topbar({ onShare, onShareSettings, onDelete, onHome, protectionOn }) {
+function Topbar({ onShare, onShareSettings, onDelete, onHome, protectionOn, onEventMode, eventModeOn }) {
   return (
     <div className="topbar">
       <span className="brand" style={{ cursor: onHome ? "pointer" : "default" }} onClick={onHome || undefined}>
         📅 일정 취합
       </span>
       <span className="spacer" />
+      {onEventMode && (
+        <button
+          className={"btn small" + (eventModeOn ? " primary" : "")}
+          onClick={onEventMode}
+          title="셀을 드래그해 약속을 잡습니다"
+        >
+          {eventModeOn ? "✓ 일정 잡기 완료" : "📅 일정 잡기"}
+        </button>
+      )}
       {onShareSettings && (
         <button className="btn small" onClick={onShareSettings} title="공유 비밀번호 설정">
           {protectionOn ? "🔒 공유 설정" : "🔓 공유 설정"}
