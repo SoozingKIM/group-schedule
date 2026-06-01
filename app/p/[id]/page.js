@@ -1567,8 +1567,9 @@ function MonthCalendar({ year, month, byDate, dateColors, canDelete, onDelete, o
                   onClick={onEdit ? () => onEdit(ev) : undefined}
                 >
                   <div className="day-evt-body">
-                    <div className="day-evt-title">{ev.title}</div>
                     <div className="day-evt-time">{ev.startTime}–{ev.endTime}</div>
+                    <div className="day-evt-title">{ev.title}</div>
+                    {ev.description && <div className="day-evt-desc">{ev.description}</div>}
                   </div>
                   {canDelete && onDelete && (
                     <button
