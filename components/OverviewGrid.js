@@ -503,6 +503,8 @@ export default function OverviewGrid({ config, people, locationName, events = []
 
 // 가능 시간 순위 — 같은 사람들이 연속해서 가능한 구간을 묶어 순위로 보여줌
 function RankingList({ people, dates, slots, counts, locationName, maxItems = 15 }) {
+  const [visibleCount, setVisibleCount] = useState(maxItems);
+  const sentinelRef = useRef(null);
   const ranges = useMemo(() => {
     const out = [];
     for (const dt of dates) {
@@ -540,6 +542,26 @@ function RankingList({ people, dates, slots, counts, locationName, maxItems = 15
 
   const allNames = useMemo(() => [...new Set(people.map((p) => p.name))], [people]);
 
+  // 범위 데이터가 바뀌면 보이는 개수를 다시 초기 사이즈로 리셋
+  useEffect(() => { setVisibleCount(maxItems); }, [ranges, maxItems]);
+
+  // 무한 스크롤: sentinel이 화면에 들어오면 15개씩 더 노출
+  useEffect(() => {
+    if (visibleCount >= ranges.length) return;
+    const node = sentinelRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisibleCount((n) => Math.min(n + maxItems, ranges.length));
+        }
+      },
+      { rootMargin: "200px 0px" }
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [visibleCount, ranges.length, maxItems]);
+
   if (ranges.length === 0) return null;
   const pad = (n) => String(n).padStart(2, "0");
   const fmtEnd = (s) => {
@@ -548,14 +570,17 @@ function RankingList({ people, dates, slots, counts, locationName, maxItems = 15
   };
   const fmtDur = (r) => formatDuration(slots[r.endIdx].minutes + 30 - slots[r.startIdx].minutes);
 
+  const shownCount = Math.min(visibleCount, ranges.length);
+  const hasMore = shownCount < ranges.length;
   return (
     <div className="ranking-list">
       <h4>
         가능 시간 순위 (같은 사람이 연속해서 가능한 구간)
+        <span className="rank-count-head">{shownCount}/{ranges.length}</span>
         {locationName && <span className="rank-loc-head">📍 {locationName}</span>}
       </h4>
       <ol>
-        {ranges.slice(0, maxItems).map((r, i) => {
+        {ranges.slice(0, shownCount).map((r, i) => {
           const available = r.names;
           const unavailable = allNames.filter((n) => !available.includes(n));
           return (
@@ -582,6 +607,20 @@ function RankingList({ people, dates, slots, counts, locationName, maxItems = 15
           );
         })}
       </ol>
+      {hasMore && (
+        <div ref={sentinelRef} className="rank-sentinel" aria-hidden="true">
+          <button
+            type="button"
+            className="rank-more-btn"
+            onClick={() => setVisibleCount((n) => Math.min(n + maxItems, ranges.length))}
+          >
+            {maxItems}개 더 보기 ({ranges.length - shownCount} 남음)
+          </button>
+        </div>
+      )}
+      {!hasMore && ranges.length > maxItems && (
+        <div className="rank-end-hint">— 끝 —</div>
+      )}
     </div>
   );
 }

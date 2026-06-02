@@ -460,6 +460,37 @@ td.heat { font-size: 11px; color: #1f2330; cursor: default; min-width: 37px; hei
   color: var(--primary); background: #f0f4ff; border: 1px solid #cdd6f5;
   padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
 }
+.ranking-list .rank-count-head {
+  color: var(--muted); font-size: 12px; font-weight: 500;
+  background: #f6f7fb; border: 1px solid var(--border);
+  padding: 1px 7px; border-radius: 10px;
+}
+
+/* 무한 스크롤 — sentinel 보이면 자동 로드, 못 보면 수동 버튼으로 */
+.rank-sentinel {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
+}
+.rank-more-btn {
+  background: #fff;
+  color: var(--primary);
+  border: 1px solid #cdd6f5;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.rank-more-btn:hover { background: #eef2ff; }
+.rank-end-hint {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 10px 0 2px;
+  letter-spacing: 0.05em;
+}
 .ranking-list ol { margin: 0; padding-left: 22px; }
 .ranking-list li {
   padding: 8px 0; line-height: 1.55;
