@@ -1550,8 +1550,8 @@ function EventEditModal({ event, onSave, onDelete, onClose }) {
   const [startTime, setStartTime] = useState(event.startTime || "");
   const [endTime, setEndTime] = useState(event.endTime || "");
   const [description, setDescription] = useState(event.description || "");
+  const [color, setColor] = useState(event.color || "red");
   const [submitting, setSubmitting] = useState(false);
-  // ESC로 취소
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
@@ -1565,7 +1565,7 @@ function EventEditModal({ event, onSave, onDelete, onClose }) {
     if (!date) { toast("날짜를 선택하세요."); return; }
     if (!startTime || !endTime) { toast("시작·종료 시간을 입력하세요."); return; }
     setSubmitting(true);
-    await onSave({ title: t, date, startTime, endTime, description: description.trim() });
+    await onSave({ title: t, date, startTime, endTime, description: description.trim(), color });
   }
 
   return (
@@ -1599,6 +1599,22 @@ function EventEditModal({ event, onSave, onDelete, onClose }) {
               placeholder="설명 (선택)"
             />
           </label>
+          <div className="evt-edit-row">
+            <span>색</span>
+            <div className="evt-color-swatches" style={{ flex: 1 }}>
+              {COLOR_PALETTE.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  className={"evt-color-swatch" + (color === c.key ? " active" : "")}
+                  style={{ background: c.hex, width: 22, height: 22 }}
+                  onClick={() => setColor(c.key)}
+                  title={c.name}
+                  aria-label={c.name}
+                />
+              ))}
+            </div>
+          </div>
           <div className="modal-actions">
             {onDelete && (
               <button type="button" className="btn danger small" onClick={onDelete} disabled={submitting}>
@@ -1736,15 +1752,19 @@ function MonthCalendar({ year, month, byDate, dateColors, canDelete, onDelete, o
               style={entry ? { borderColor: entry.hex, background: paletteRgba(colorKey, 0.07) } : undefined}
             >
               <div className="day-num">{cell.d}</div>
-              {evs.map((ev) => (
+              {evs.map((ev) => {
+                const eHex = paletteEntry(ev.color || "red")?.hex || "#e5484d";
+                const eHexLight = paletteRgba(ev.color || "red", 0.10) || "#fff5f5";
+                return (
                 <div
                   key={ev.id}
                   className={"day-evt" + (onEdit ? " clickable" : "")}
+                  style={{ borderLeftColor: eHex, background: eHexLight }}
                   title={`${ev.startTime}–${ev.endTime} ${ev.title}${ev.description ? `\n${ev.description}` : ""}${onEdit ? "\n(클릭하면 수정)" : ""}`}
                   onClick={onEdit ? () => onEdit(ev) : undefined}
                 >
                   <div className="day-evt-body">
-                    <div className="day-evt-time">{ev.startTime}–{ev.endTime}</div>
+                    <div className="day-evt-time" style={{ color: eHex }}>{ev.startTime}–{ev.endTime}</div>
                     <div className="day-evt-title">{ev.title}</div>
                     {ev.description && <div className="day-evt-desc">{ev.description}</div>}
                   </div>
@@ -1758,7 +1778,8 @@ function MonthCalendar({ year, month, byDate, dateColors, canDelete, onDelete, o
                     >×</button>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           );
         })}

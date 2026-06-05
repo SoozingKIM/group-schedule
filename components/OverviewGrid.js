@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { generateDates, generateSlots, slotKey, hourGroups } from "@/lib/schedule";
-import { paletteEntry, paletteRgba, DEFAULT_PALETTE_KEY } from "@/lib/colorPalette";
+import { COLOR_PALETTE, paletteEntry, paletteRgba, DEFAULT_PALETTE_KEY } from "@/lib/colorPalette";
 
 export function formatDuration(totalMin) {
   if (!totalMin) return "0분";
@@ -338,6 +338,9 @@ export default function OverviewGrid({ config, people, locationName, events = []
                     const firstEvts = evList.filter((x) => x.isFirst);
                     const isEvtFirst = firstEvts.length > 0;
                     const isEvtLast = evList.some((x) => x.isLast);
+                    // 셀의 일정 테두리 색 — 같은 셀에 여러 일정이 있으면 첫 번째 일정 색 사용
+                    const evtPrimary = evList[0]?.event;
+                    const evtHex = evtPrimary ? (paletteEntry(evtPrimary.color || "red")?.hex || "#e5484d") : null;
                     // 드래그 중이거나, 드래그 끝나고 입력 팝업이 떠 있는 동안에도 선택 영역 강조
                     const inDrag = isInDrag(cIdx, r);
                     const inInput = !!(
@@ -373,9 +376,12 @@ export default function OverviewGrid({ config, people, locationName, events = []
                         }
                         data-c={cIdx}
                         data-r={r}
-                        style={hex
-                          ? { background: bg(c, colorKey), color: fg(c), "--marked-color": hex }
-                          : { background: bg(c, colorKey), color: fg(c) }}
+                        style={{
+                          background: bg(c, colorKey),
+                          color: fg(c),
+                          ...(hex ? { "--marked-color": hex } : {}),
+                          ...(evtHex ? { "--evt-color": evtHex } : {}),
+                        }}
                         onMouseEnter={(e) => onCellEnter(e, dt, s, k)}
                         onMouseMove={onCellMove}
                         onMouseLeave={onCellLeave}
@@ -383,26 +389,30 @@ export default function OverviewGrid({ config, people, locationName, events = []
                         onPointerDown={(e) => onCellPointerDown(e, dt, s, k, cIdx, r)}
                       >
                         {c > 0 ? c : ""}
-                        {isEvtFirst && firstEvts.map(({ event }) => (
-                          <span
-                            key={event.id}
-                            className="evt-badge"
-                            onMouseEnter={(e) => {
-                              keepHoverOpen();
-                              setHoverEvent({ event, x: e.clientX, y: e.clientY });
-                            }}
-                            onMouseMove={(e) => {
-                              setHoverEvent((h) => (h && h.event.id === event.id ? { ...h, x: e.clientX, y: e.clientY } : h));
-                            }}
-                            onMouseLeave={scheduleHoverClose}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={(e) => e.stopPropagation()}
-                            title={event.title}
-                            aria-label={event.title}
-                          >
-                            📌
-                          </span>
-                        ))}
+                        {isEvtFirst && firstEvts.map(({ event }) => {
+                          const bHex = paletteEntry(event.color || "red")?.hex || "#e5484d";
+                          return (
+                            <span
+                              key={event.id}
+                              className="evt-badge"
+                              style={{ background: bHex }}
+                              onMouseEnter={(e) => {
+                                keepHoverOpen();
+                                setHoverEvent({ event, x: e.clientX, y: e.clientY });
+                              }}
+                              onMouseMove={(e) => {
+                                setHoverEvent((h) => (h && h.event.id === event.id ? { ...h, x: e.clientX, y: e.clientY } : h));
+                              }}
+                              onMouseLeave={scheduleHoverClose}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => e.stopPropagation()}
+                              title={event.title}
+                              aria-label={event.title}
+                            >
+                              📌
+                            </span>
+                          );
+                        })}
                       </td>
                     );
                   })}
@@ -440,6 +450,7 @@ export default function OverviewGrid({ config, people, locationName, events = []
                 startTime,
                 endTime,
                 description: data.description,
+                color: data.color,
               });
             }
             setEventInput(null);
@@ -629,12 +640,12 @@ function RankingList({ people, dates, slots, counts, locationName, maxItems = 15
 function EventInputPopup({ info, slots, onCancel, onSubmit }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [color, setColor] = useState("red");
   const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef(null);
   useEffect(() => {
     inputRef.current && inputRef.current.focus();
   }, []);
-  // ESC로 취소
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onCancel(); };
     document.addEventListener("keydown", onKey);
@@ -642,13 +653,14 @@ function EventInputPopup({ info, slots, onCancel, onSubmit }) {
   }, [onCancel]);
 
   const pad = 14;
-  const w = 240;
-  const h = 200;
+  const w = 260;
+  const h = 240;
   const left = Math.min(info.x + 12, (typeof window !== "undefined" ? window.innerWidth : 1024) - w - pad);
   const top = Math.min(info.y + 14, (typeof window !== "undefined" ? window.innerHeight : 768) - h - pad);
   const startLabel = slots[info.startR].label;
   const endLabel = slotEndTime(slots[info.endR]);
   const dateLabel = `${info.dt.label}(${info.dt.dowLabel})`;
+  const entry = paletteEntry(color) || paletteEntry("red");
 
   async function submit(e) {
     e.preventDefault();
@@ -657,13 +669,13 @@ function EventInputPopup({ info, slots, onCancel, onSubmit }) {
       return;
     }
     setSubmitting(true);
-    await onSubmit({ title: title.trim(), description: description.trim() });
+    await onSubmit({ title: title.trim(), description: description.trim(), color });
   }
 
   return (
     <div
       className="evt-input-popup"
-      style={{ left, top, width: w }}
+      style={{ left, top, width: w, borderColor: entry.hex }}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
@@ -688,13 +700,41 @@ function EventInputPopup({ info, slots, onCancel, onSubmit }) {
           rows={2}
           maxLength={300}
         />
+        <EventColorRow value={color} onChange={setColor} />
         <div className="evt-input-actions">
           <button type="button" className="btn-ghost" onClick={onCancel} disabled={submitting}>취소</button>
-          <button type="submit" className="btn-primary" disabled={submitting || !title.trim()}>
+          <button
+            type="submit"
+            className="btn-primary"
+            style={{ background: entry.hex, borderColor: entry.hex }}
+            disabled={submitting || !title.trim()}
+          >
             {submitting ? "추가 중…" : "추가"}
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// 일정 색 선택 — 작은 팔레트 스왓치 한 줄
+function EventColorRow({ value, onChange }) {
+  return (
+    <div className="evt-color-row">
+      <span className="evt-color-row-label">색</span>
+      <div className="evt-color-swatches">
+        {COLOR_PALETTE.map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            className={"evt-color-swatch" + (value === c.key ? " active" : "")}
+            style={{ background: c.hex }}
+            onClick={() => onChange(c.key)}
+            title={c.name}
+            aria-label={c.name}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -705,14 +745,15 @@ function EventTooltip({ event, x, y, canDelete, canEdit, onDelete, onEdit, onMou
   const w = 240;
   const left = Math.min(x + 12, (typeof window !== "undefined" ? window.innerWidth : 1024) - w - pad);
   const top = Math.min(y + 14, (typeof window !== "undefined" ? window.innerHeight : 768) - 160);
+  const tHex = paletteEntry(event.color || "red")?.hex || "#e5484d";
   return (
     <div
       className="evt-tooltip"
-      style={{ left, top, width: w }}
+      style={{ left, top, width: w, borderColor: tHex }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <div className="evt-tt-head">📅 {event.title}</div>
+      <div className="evt-tt-head" style={{ color: tHex }}>📅 {event.title}</div>
       <div className="evt-tt-when">
         {event.date} · {event.startTime}–{event.endTime}
       </div>
