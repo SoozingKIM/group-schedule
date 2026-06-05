@@ -7,7 +7,7 @@ import { toast } from "@/lib/ui";
 import ScheduleGrid from "@/components/ScheduleGrid";
 import OverviewGrid from "@/components/OverviewGrid";
 import { generateDates } from "@/lib/schedule";
-import { COLOR_PALETTE, paletteEntry, paletteRgba } from "@/lib/colorPalette";
+import { COLOR_PALETTE, paletteEntry, paletteRgba, paletteDarkText } from "@/lib/colorPalette";
 
 function formatRelative(ts) {
   if (!ts) return "—";
@@ -1755,6 +1755,7 @@ function MonthCalendar({ year, month, byDate, dateColors, canDelete, onDelete, o
               {evs.map((ev) => {
                 const eHex = paletteEntry(ev.color || "red")?.hex || "#e5484d";
                 const eHexLight = paletteRgba(ev.color || "red", 0.10) || "#fff5f5";
+                const eHexDark = paletteDarkText(ev.color || "red");
                 return (
                 <div
                   key={ev.id}
@@ -1764,7 +1765,7 @@ function MonthCalendar({ year, month, byDate, dateColors, canDelete, onDelete, o
                   onClick={onEdit ? () => onEdit(ev) : undefined}
                 >
                   <div className="day-evt-body">
-                    <div className="day-evt-time" style={{ color: eHex }}>{ev.startTime}–{ev.endTime}</div>
+                    <div className="day-evt-time" style={{ color: eHexDark }}>{ev.startTime}–{ev.endTime}</div>
                     <div className="day-evt-title">{ev.title}</div>
                     {ev.description && <div className="day-evt-desc">{ev.description}</div>}
                   </div>

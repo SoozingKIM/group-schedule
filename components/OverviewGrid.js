@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { generateDates, generateSlots, slotKey, hourGroups } from "@/lib/schedule";
-import { COLOR_PALETTE, paletteEntry, paletteRgba, DEFAULT_PALETTE_KEY } from "@/lib/colorPalette";
+import { COLOR_PALETTE, paletteEntry, paletteRgba, paletteDarkText, DEFAULT_PALETTE_KEY } from "@/lib/colorPalette";
 
 export function formatDuration(totalMin) {
   if (!totalMin) return "0분";
@@ -746,6 +746,7 @@ function EventTooltip({ event, x, y, canDelete, canEdit, onDelete, onEdit, onMou
   const left = Math.min(x + 12, (typeof window !== "undefined" ? window.innerWidth : 1024) - w - pad);
   const top = Math.min(y + 14, (typeof window !== "undefined" ? window.innerHeight : 768) - 160);
   const tHex = paletteEntry(event.color || "red")?.hex || "#e5484d";
+  const tHexDark = paletteDarkText(event.color || "red");
   return (
     <div
       className="evt-tooltip"
@@ -753,7 +754,7 @@ function EventTooltip({ event, x, y, canDelete, canEdit, onDelete, onEdit, onMou
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <div className="evt-tt-head" style={{ color: tHex }}>📅 {event.title}</div>
+      <div className="evt-tt-head" style={{ color: tHexDark }}>📅 {event.title}</div>
       <div className="evt-tt-when">
         {event.date} · {event.startTime}–{event.endTime}
       </div>
